@@ -8,7 +8,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Search, Box, Scale } from 'lucide-react'
+import {
+  Search, Box, Scale, Package, ThermometerSnowflake, Container, ArrowUpRight,
+  Truck, Warehouse, CheckCircle2, AlertCircle, FileWarning
+} from 'lucide-react'
 import { motion } from 'framer-motion'
 
 const CONTAINER_STATUS_COLORS: Record<string, string> = {
@@ -33,19 +36,35 @@ const CONTAINER_STATUS_BORDER: Record<string, string> = {
   'En aduana': 'border-l-orange-500',
 }
 
-const CONTAINER_TYPE_ICONS: Record<string, string> = {
-  "20' Estándar": '📦',
-  "40' Estándar": '📦',
-  "40' High Cube": '📦⬆️',
-  '20ft Dry': '📦',
-  '40ft Dry': '📦',
-  '40ft HC': '📦⬆️',
-  'Refrigerado': '❄️',
-  '20ft Refrigerado': '❄️',
-  '40ft Refrigerado': '❄️',
-  'Tanque': '🛢️',
-  'Open Top': '📦⬆️',
-  '20ft Open Top': '📦⬆️',
+// Lucide icons for container types
+const CONTAINER_TYPE_ICONS_LUCIDE: Record<string, React.ElementType> = {
+  "20' Estándar": Package,
+  "40' Estándar": Package,
+  "40' High Cube": Container,
+  '20ft Dry': Package,
+  '40ft Dry': Package,
+  '40ft HC': Container,
+  'Refrigerado': ThermometerSnowflake,
+  '20ft Refrigerado': ThermometerSnowflake,
+  '40ft Refrigerado': ThermometerSnowflake,
+  'Tanque': Container,
+  'Open Top': Container,
+  '20ft Open Top': Container,
+}
+
+const CONTAINER_TYPE_COLORS: Record<string, string> = {
+  "20' Estándar": 'text-teal-600 dark:text-teal-400 bg-teal-100 dark:bg-teal-900/30',
+  "40' Estándar": 'text-teal-600 dark:text-teal-400 bg-teal-100 dark:bg-teal-900/30',
+  "40' High Cube": 'text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/30',
+  '20ft Dry': 'text-teal-600 dark:text-teal-400 bg-teal-100 dark:bg-teal-900/30',
+  '40ft Dry': 'text-teal-600 dark:text-teal-400 bg-teal-100 dark:bg-teal-900/30',
+  '40ft HC': 'text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/30',
+  'Refrigerado': 'text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/30',
+  '20ft Refrigerado': 'text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/30',
+  '40ft Refrigerado': 'text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/30',
+  'Tanque': 'text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30',
+  'Open Top': 'text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30',
+  '20ft Open Top': 'text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30',
 }
 
 // Max weight by container type in tons (approximate)
@@ -66,7 +85,7 @@ const CONTAINER_MAX_WEIGHT: Record<string, number> = {
 
 const CONTAINER_TYPES = ['20ft Dry', '40ft Dry', '40ft HC', '20ft Refrigerado', '40ft Refrigerado', '20ft Open Top']
 
-interface Container {
+interface ContainerData {
   id: string
   number: string
   type: string
@@ -87,8 +106,14 @@ function getWeightColor(percent: number): string {
   return 'bg-teal-500'
 }
 
+function getWeightBgColor(percent: number): string {
+  if (percent >= 90) return 'bg-red-500/15'
+  if (percent >= 70) return 'bg-amber-500/15'
+  return 'bg-teal-500/15'
+}
+
 export function Containers() {
-  const [containers, setContainers] = useState<Container[]>([])
+  const [containers, setContainers] = useState<ContainerData[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
@@ -118,13 +143,24 @@ export function Containers() {
     statusCounts[c.status] = (statusCounts[c.status] || 0) + 1
   })
 
+  // Compute total weight
+  const totalWeight = containers.reduce((sum, c) => sum + c.weight, 0)
+
+  const getContainerTypeIcon = (type: string): React.ElementType => {
+    return CONTAINER_TYPE_ICONS_LUCIDE[type] || Package
+  }
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }} className="space-y-4">
-      {/* Summary Stats Bar */}
+      {/* Summary Stats Bar - properly aligned */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-teal-500/10 border border-teal-500/20">
           <Box className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
           <span className="text-xs font-semibold text-teal-700 dark:text-teal-300">{totalContainers} Total</span>
+        </div>
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-500/10 border border-slate-500/20">
+          <Scale className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
+          <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">{totalWeight.toLocaleString()} ton total</span>
         </div>
         {Object.entries(statusCounts).sort((a, b) => b[1] - a[1]).map(([status, count]) => (
           <div key={status} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted/50 border border-border">
@@ -148,7 +184,10 @@ export function Containers() {
               <SelectTrigger className="w-[180px] h-9"><SelectValue placeholder="Tipo" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos los tipos</SelectItem>
-                {CONTAINER_TYPES.map((t) => <SelectItem key={t} value={t}>{CONTAINER_TYPE_ICONS[t] || '📦'} {t}</SelectItem>)}
+                {CONTAINER_TYPES.map((t) => {
+                  const Icon = getContainerTypeIcon(t)
+                  return <SelectItem key={t} value={t}><span className="flex items-center gap-1.5"><Icon className="w-3.5 h-3.5" /> {t}</span></SelectItem>
+                })}
               </SelectContent>
             </Select>
           </div>
@@ -182,13 +221,23 @@ export function Containers() {
                 <TableBody>
                   {containers.map((c) => {
                     const weightPercent = getWeightPercent(c.weight, c.type)
-                    const typeIcon = CONTAINER_TYPE_ICONS[c.type] || '📦'
+                    const TypeIcon = getContainerTypeIcon(c.type)
+                    const typeColor = CONTAINER_TYPE_COLORS[c.type] || 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
 
                     return (
                       <TableRow key={c.id} className={`border-l-4 ${CONTAINER_STATUS_BORDER[c.status] || ''}`}>
-                        <TableCell className="font-medium text-sm font-mono">{c.number}</TableCell>
+                        <TableCell>
+                          <span className="font-mono text-sm font-semibold px-2 py-1 rounded bg-muted/70 inline-block">
+                            {c.number}
+                          </span>
+                        </TableCell>
                         <TableCell className="text-sm">
-                          <span className="mr-1">{typeIcon}</span>{c.type}
+                          <div className="flex items-center gap-2">
+                            <div className={`w-6 h-6 rounded flex items-center justify-center flex-shrink-0 ${typeColor}`}>
+                              <TypeIcon className="w-3.5 h-3.5" />
+                            </div>
+                            <span>{c.type}</span>
+                          </div>
                         </TableCell>
                         <TableCell className="text-sm">
                           {c.sealNumber ? (
@@ -197,19 +246,35 @@ export function Containers() {
                             <span className="text-muted-foreground">—</span>
                           )}
                         </TableCell>
-                        <TableCell className="text-sm font-medium">{c.weight.toLocaleString()}</TableCell>
                         <TableCell className="text-sm">
-                          <div className="flex items-center gap-2 min-w-[100px]">
-                            <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                          <div className="flex items-center gap-1.5">
+                            <Scale className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                            <span className="font-medium">{c.weight.toLocaleString()}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          <div className="flex items-center gap-2 min-w-[120px]">
+                            <div className={`flex-1 h-3 rounded-full overflow-hidden ${getWeightBgColor(weightPercent)}`}>
                               <div
-                                className={`h-full rounded-full transition-all duration-300 ${getWeightColor(weightPercent)}`}
+                                className={`h-full rounded-full transition-all duration-500 ${getWeightColor(weightPercent)}`}
                                 style={{ width: `${weightPercent}%` }}
                               />
                             </div>
-                            <span className="text-[10px] text-muted-foreground font-medium w-8 text-right">{weightPercent}%</span>
+                            <span className={`text-[10px] font-semibold w-9 text-right ${weightPercent >= 90 ? 'text-red-600 dark:text-red-400' : weightPercent >= 70 ? 'text-amber-600 dark:text-amber-400' : 'text-teal-600 dark:text-teal-400'}`}>
+                              {weightPercent}%
+                            </span>
                           </div>
                         </TableCell>
-                        <TableCell className="text-sm">{c.shipment?.reference || '—'}</TableCell>
+                        <TableCell className="text-sm">
+                          {c.shipment?.reference ? (
+                            <button className="flex items-center gap-1 text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 font-medium transition-colors">
+                              {c.shipment.reference}
+                              <ArrowUpRight className="w-3 h-3" />
+                            </button>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
                         <TableCell>
                           <Badge variant="secondary" className={`text-xs ${CONTAINER_STATUS_COLORS[c.status] || ''}`}>{c.status}</Badge>
                         </TableCell>

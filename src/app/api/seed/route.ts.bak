@@ -3,12 +3,6 @@ import { db } from "@/lib/db";
 
 export async function POST() {
   try {
-    // Check if database already has data
-    const existingShipments = await db.shipment.count()
-    if (existingShipments > 0) {
-      return NextResponse.json({ success: true, message: "Database already seeded, skipping" })
-    }
-
     // Delete existing data in the correct order (respecting foreign keys)
     await db.crewAssignment.deleteMany();
     await db.chainOfCustody.deleteMany();
@@ -323,6 +317,7 @@ export async function POST() {
           hsCode: "0304.89", hsDescription: "Pescado congelado, excepto filetes",
           productDescription: "Pescado congelado diverso para consumo humano",
           regulatoryCategory: "Alimento perecedero", subcategory: "Productos del mar",
+          storageConditions: "-18°C, humedad < 80%",
           incoterm: "CIF", incotermPoint: "La Guaira",
           originCountry: "Brasil", destinationCountry: "Venezuela",
         },
@@ -581,6 +576,7 @@ export async function POST() {
           grossWeight: 22000.0, netWeight: 21800.0, weightUnit: "ton",
           volume: 32.0, packagingType: "Granel suelto",
           hazardClass: "4.2", unNumber: "UN2714", packagingGroup: "III",
+          storageConditions: "Lugar seco, alejado de fuentes de ignición",
           originCountry: "Colombia", originRegion: "Cesar",
           originMunicipality: "La Jagua de Ibirico",
           originGpsLat: 7.5167, originGpsLng: -73.3333,

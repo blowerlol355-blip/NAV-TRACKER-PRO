@@ -11,6 +11,12 @@ import { Containers } from '@/components/dashboard/containers'
 import { Vessels } from '@/components/dashboard/vessels'
 import { Documents } from '@/components/dashboard/documents'
 import { Ports } from '@/components/dashboard/ports'
+import { Crew } from '@/components/dashboard/crew'
+import { Custody } from '@/components/dashboard/custody'
+import { Claims } from '@/components/dashboard/claims'
+import { ExpirationCalendar } from '@/components/dashboard/calendar'
+import { Comparator } from '@/components/dashboard/comparator'
+import { Simulator } from '@/components/dashboard/simulator'
 import { AnimatePresence, motion } from 'framer-motion'
 
 export default function Home() {
@@ -45,13 +51,30 @@ export default function Home() {
               exit={{ opacity: 0, x: -10 }}
               transition={{ duration: 0.2 }}
             >
-              {activeTab === 'dashboard' && <Overview />}
-              {activeTab === 'shipments' && <Shipments />}
-              {activeTab === 'permits' && <Permits />}
-              {activeTab === 'containers' && <Containers />}
-              {activeTab === 'vessels' && <Vessels />}
-              {activeTab === 'documents' && <Documents />}
-              {activeTab === 'ports' && <Ports />}
+              {!dataInitialized ? (
+                <div className="flex items-center justify-center h-64">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-10 h-10 border-3 border-teal-500 border-t-transparent rounded-full animate-spin" />
+                    <p className="text-sm text-muted-foreground">Inicializando datos...</p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {activeTab === 'dashboard' && <Overview />}
+                  {activeTab === 'shipments' && <Shipments />}
+                  {activeTab === 'permits' && <Permits />}
+                  {activeTab === 'containers' && <Containers />}
+                  {activeTab === 'vessels' && <Vessels />}
+                  {activeTab === 'documents' && <Documents />}
+                  {activeTab === 'ports' && <Ports />}
+                  {activeTab === 'crew' && <Crew />}
+                  {activeTab === 'custody' && <Custody />}
+                  {activeTab === 'claims' && <Claims />}
+                  {activeTab === 'calendar' && <ExpirationCalendar />}
+                  {activeTab === 'comparator' && <Comparator />}
+                  {activeTab === 'simulator' && <Simulator />}
+                </>
+              )}
             </motion.div>
           </AnimatePresence>
         </main>

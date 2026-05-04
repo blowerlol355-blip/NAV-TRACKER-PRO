@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import {
   Ship, FileCheck, Box, Anchor, AlertTriangle, Clock, FileX,
   DollarSign, TrendingUp, Route, ArrowRight, ExternalLink,
-  PackageCheck, Sailboat, FileUp, AlertCircle
+  PackageCheck, Sailboat, FileUp, AlertCircle, BarChart3, PieChart as PieChartIcon, Inbox
 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
 import { motion } from 'framer-motion'
@@ -37,6 +37,8 @@ interface DashboardData {
     reference: string
     origin: string
     destination: string
+    originPort: string
+    destinationPort: string
     cargoType: string
     status: string
     eta: string | null
@@ -100,20 +102,16 @@ function PortCodeBadge({ code }: { code: string }) {
   )
 }
 
-function getPortCode(portName: string): string {
-  const codes: Record<string, string> = {
-    'Puerto de Veracruz': 'VER',
-    'Puerto de Manzanillo': 'MAN',
-    'Puerto de Altamira': 'ALT',
-    'Puerto de Lázaro Cárdenas': 'LZC',
-    'Puerto de Ensenada': 'ENS',
-    'Puerto de Progreso': 'PRO',
-    'Port of Miami': 'MIA',
-    'Port of Houston': 'HOU',
-    'Port of Rotterdam': 'RTM',
-    'Port of Shanghai': 'SHA',
-  }
-  return codes[portName] || portName.substring(0, 3).toUpperCase()
+function EmptyChartState({ icon: Icon, title }: { icon: React.ElementType; title: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+      <div className="w-14 h-14 rounded-full bg-muted/60 flex items-center justify-center mb-3">
+        <Icon className="w-7 h-7 opacity-50" />
+      </div>
+      <p className="text-sm font-medium">{title}</p>
+      <p className="text-xs mt-1 opacity-70">No hay datos disponibles</p>
+    </div>
+  )
 }
 
 export function Overview() {
@@ -121,13 +119,32 @@ export function Overview() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/dashboard')
-      .then((res) => res.json())
-      .then((d) => {
-        setData(d)
-        setLoading(false)
-      })
-      .catch(() => setLoading(false))
+    let retries = 0
+    const maxRetries = 5
+    const fetchData = () => {
+      fetch('/api/dashboard')
+        .then((res) => {
+          if (!res.ok) throw new Error('API error')
+          return res.json()
+        })
+        .then((d) => {
+          if (d && d.kpis) {
+            setData(d)
+            setLoading(false)
+          } else {
+            throw new Error('Invalid data')
+          }
+        })
+        .catch(() => {
+          retries++
+          if (retries < maxRetries) {
+            setTimeout(fetchData, 2000)
+          } else {
+            setLoading(false)
+          }
+        })
+    }
+    fetchData()
   }, [])
 
   if (loading) {
@@ -160,10 +177,13 @@ export function Overview() {
   // Determine the most active route from recent shipments
   const routeCounts: Record<string, number> = {}
   data.recentShipments.forEach((s) => {
-    const route = `${getPortCode(s.origin)} → ${getPortCode(s.destination)}`
+    const route = `${s.originPort} → ${s.destinationPort}`
     routeCounts[route] = (routeCounts[route] || 0) + 1
   })
-  const mostActiveRoute = Object.entries(routeCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'VER → MIA'
+  const mostActiveRoute = Object.entries(routeCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'VELGU → USMIA'
+
+  const hasBarData = data.chartData.months && data.chartData.months.length > 0
+  const hasPieData = data.chartData.statusDistribution && data.chartData.statusDistribution.length > 0
 
   return (
     <div className="space-y-6">
@@ -260,35 +280,44 @@ export function Overview() {
         >
           <Card className="h-full">
             <CardHeader className="pb-1">
-              <CardTitle className="text-base font-semibold">Envíos por Mes</CardTitle>
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-teal-500" />
+                Envíos por Mes
+              </CardTitle>
               <p className="text-xs text-muted-foreground">Últimos 6 meses</p>
             </CardHeader>
             <CardContent className="pt-0">
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={data.chartData.months} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#14b8a6" stopOpacity={1} />
-                      <stop offset="100%" stopColor="#14b8a6" stopOpacity={0.4} />
-                    </linearGradient>
-                    <filter id="barShadow" x="-10%" y="-10%" width="120%" height="130%">
-                      <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#14b8a6" floodOpacity="0.2" />
-                    </filter>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
-                  <XAxis dataKey="name" className="text-xs" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <YAxis className="text-xs" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px',
-                      fontSize: '12px',
-                    }}
-                  />
-                  <Bar dataKey="envios" fill="url(#barGradient)" radius={[6, 6, 0, 0]} filter="url(#barShadow)" />
-                </BarChart>
-              </ResponsiveContainer>
+              <div style={{ width: '100%', height: 280, minHeight: 280 }}>
+                {hasBarData ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={data.chartData.months} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#14b8a6" stopOpacity={1} />
+                          <stop offset="100%" stopColor="#14b8a6" stopOpacity={0.4} />
+                        </linearGradient>
+                        <filter id="barShadow" x="-10%" y="-10%" width="120%" height="130%">
+                          <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#14b8a6" floodOpacity="0.2" />
+                        </filter>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
+                      <XAxis dataKey="name" className="text-xs" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                      <YAxis className="text-xs" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--card))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px',
+                          fontSize: '12px',
+                        }}
+                      />
+                      <Bar dataKey="envios" fill="url(#barGradient)" radius={[6, 6, 0, 0]} filter="url(#barShadow)" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <EmptyChartState icon={BarChart3} title="Envíos por Mes" />
+                )}
+              </div>
             </CardContent>
           </Card>
         </motion.div>
@@ -300,39 +329,48 @@ export function Overview() {
         >
           <Card className="h-full">
             <CardHeader className="pb-1">
-              <CardTitle className="text-base font-semibold">Estado de Envíos</CardTitle>
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <PieChartIcon className="w-4 h-4 text-teal-500" />
+                Estado de Envíos
+              </CardTitle>
               <p className="text-xs text-muted-foreground">Distribución actual</p>
             </CardHeader>
             <CardContent className="pt-0">
-              <ResponsiveContainer width="100%" height={280}>
-                <PieChart margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-                  <Pie
-                    data={data.chartData.statusDistribution}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={55}
-                    outerRadius={85}
-                    paddingAngle={3}
-                    dataKey="value"
-                  >
-                    {data.chartData.statusDistribution.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px',
-                      fontSize: '12px',
-                    }}
-                  />
-                  <Legend
-                    wrapperStyle={{ fontSize: '11px' }}
-                    formatter={(value: string) => <span className="text-foreground">{value}</span>}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+              <div style={{ width: '100%', height: 280, minHeight: 280 }}>
+                {hasPieData ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                      <Pie
+                        data={data.chartData.statusDistribution}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={55}
+                        outerRadius={85}
+                        paddingAngle={3}
+                        dataKey="value"
+                      >
+                        {data.chartData.statusDistribution.map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--card))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px',
+                          fontSize: '12px',
+                        }}
+                      />
+                      <Legend
+                        wrapperStyle={{ fontSize: '11px' }}
+                        formatter={(value: string) => <span className="text-foreground">{value}</span>}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <EmptyChartState icon={PieChartIcon} title="Estado de Envíos" />
+                )}
+              </div>
             </CardContent>
           </Card>
         </motion.div>
@@ -371,9 +409,9 @@ export function Overview() {
                       <TableCell className="font-medium text-sm">{s.reference}</TableCell>
                       <TableCell className="text-sm">
                         <div className="flex items-center gap-1.5">
-                          <PortCodeBadge code={getPortCode(s.origin)} />
+                          <PortCodeBadge code={s.originPort} />
                           <ArrowRight className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-                          <PortCodeBadge code={getPortCode(s.destination)} />
+                          <PortCodeBadge code={s.destinationPort} />
                         </div>
                       </TableCell>
                       <TableCell className="text-sm">

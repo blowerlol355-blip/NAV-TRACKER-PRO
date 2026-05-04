@@ -17,7 +17,7 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/
 import {
   Search, Plus, ChevronLeft, ChevronRight, Ship, ArrowRight, CheckCircle2,
   FileCheck, Box, FileText, Anchor, Calendar, Weight, DollarSign, Navigation,
-  RefreshCw, MapPin, ChevronDown
+  RefreshCw, MapPin, ChevronDown, Download
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
@@ -195,6 +195,40 @@ export function Shipments() {
     return `${weight.toFixed(1)} ton`
   }
 
+  const exportCSV = () => {
+    if (shipments.length === 0) {
+      toast.error('No hay datos para exportar')
+      return
+    }
+    const headers = ['Referencia', 'BL', 'Cliente', 'Origen', 'Destino', 'Tipo Carga', 'Peso', 'Contenedores', 'Estado', 'ETA', 'Embarcación']
+    const rows = shipments.map((s) => [
+      s.reference,
+      s.blNumber,
+      s.clientName || '',
+      s.originPort,
+      s.destinationPort,
+      s.cargoType,
+      s.weight.toString(),
+      s.containerCount.toString(),
+      s.status,
+      s.eta ? new Date(s.eta).toLocaleDateString('es-MX') : '',
+      s.vessel?.name || '',
+    ])
+    const csvContent = [headers, ...rows]
+      .map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(','))
+      .join('\n')
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `envios_${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    toast.success('Datos exportados exitosamente')
+  }
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }} className="space-y-4">
       {/* Filter Bar */}
@@ -242,7 +276,16 @@ export function Shipments() {
                   {activeFilterCount} filtro{activeFilterCount > 1 ? 's' : ''}
                 </Badge>
               )}
-              <div className="ml-auto">
+              <div className="ml-auto flex items-center gap-2">
+                <Button
+                  onClick={exportCSV}
+                  variant="outline"
+                  className="h-9 gap-1.5 border-teal-200 text-teal-700 hover:bg-teal-50 dark:border-teal-800 dark:text-teal-300 dark:hover:bg-teal-950/30"
+                  disabled={loading}
+                >
+                  <Download className="w-4 h-4" />
+                  Exportar CSV
+                </Button>
                 <Button
                   onClick={() => setShowAdd(true)}
                   className="h-9 bg-teal-600 hover:bg-teal-700 gap-1.5 group"

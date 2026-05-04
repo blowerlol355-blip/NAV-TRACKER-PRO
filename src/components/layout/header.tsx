@@ -5,7 +5,7 @@ import { Search, Bell, Sun, Moon, RefreshCw } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 
 const tabTitles: Record<string, string> = {
@@ -16,6 +16,12 @@ const tabTitles: Record<string, string> = {
   vessels: 'Flota de Embarcaciones',
   documents: 'Gestión Documental',
   ports: 'Directorio de Puertos',
+  crew: 'Gestión de Tripulación',
+  custody: 'Cadena de Custodia',
+  claims: 'Reclamaciones y Devoluciones',
+  calendar: 'Calendario de Vencimientos',
+  comparator: 'Comparador de Requisitos',
+  simulator: 'Simulador de Costos',
 }
 
 const tabSubtitles: Record<string, string> = {
@@ -26,6 +32,12 @@ const tabSubtitles: Record<string, string> = {
   vessels: 'Gestión de la flota naval',
   documents: 'Administración de documentación',
   ports: 'Directorio de puertos marítimos',
+  crew: 'Administración de tripulantes y licencias',
+  custody: 'Trazabilidad de la cadena de custodia',
+  claims: 'Gestión de reclamaciones, devoluciones e incidencias',
+  calendar: 'Control de vencimientos de permisos, licencias y documentos',
+  comparator: 'Compara requisitos de importación por país',
+  simulator: 'Estima costos de cumplimiento regulatorio',
 }
 
 const notifications = [
@@ -39,6 +51,41 @@ export function Header() {
   const [darkMode, setDarkMode] = useState(false)
   const [currentTime, setCurrentTime] = useState('')
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const initializedRef = useRef(false)
+
+  // Initialize dark mode from localStorage or system preference on mount
+  useEffect(() => {
+    const stored = localStorage.getItem('theme')
+    let isDark = false
+    if (stored === 'dark') {
+      isDark = true
+    } else if (stored === 'light') {
+      isDark = false
+    } else {
+      isDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+    }
+    // Apply class immediately before paint to avoid flash
+    if (isDark) {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+    }
+    initializedRef.current = true
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Theme initialization requires reading localStorage on mount
+    setDarkMode(isDark)
+  }, [])
+
+  // Apply dark mode changes and persist to localStorage when toggled
+  useEffect(() => {
+    if (!initializedRef.current) return
+    if (darkMode) {
+      document.documentElement.classList.add('dark')
+      localStorage.setItem('theme', 'dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+      localStorage.setItem('theme', 'light')
+    }
+  }, [darkMode])
 
   useEffect(() => {
     const updateTime = () => {
@@ -53,14 +100,6 @@ export function Header() {
     const interval = setInterval(updateTime, 60000)
     return () => clearInterval(interval)
   }, [])
-
-  useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark')
-    } else {
-      document.documentElement.classList.remove('dark')
-    }
-  }, [darkMode])
 
   const handleRefresh = () => {
     setIsRefreshing(true)

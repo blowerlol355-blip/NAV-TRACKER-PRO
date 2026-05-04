@@ -2,7 +2,7 @@
 
 import { create } from 'zustand'
 
-export type TabId = 'dashboard' | 'shipments' | 'permits' | 'containers' | 'vessels' | 'documents' | 'ports'
+export type TabId = 'dashboard' | 'shipments' | 'permits' | 'containers' | 'vessels' | 'documents' | 'ports' | 'crew' | 'custody' | 'claims' | 'calendar' | 'comparator' | 'simulator'
 
 interface AppState {
   activeTab: TabId

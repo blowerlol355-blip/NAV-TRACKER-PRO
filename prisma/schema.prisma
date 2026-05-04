@@ -28,12 +28,51 @@ model Shipment {
   clientId        String?
   clientName      String?
   notes           String?
+  // Cargo Detail Fields
+  hsCode          String?
+  hsDescription   String?
+  productDescription String?
+  regulatoryCategory String?
+  subcategory     String?
+  grossWeight     Float?
+  netWeight       Float?
+  weightUnit      String?  @default("kg")
+  volume          Float?
+  packageCount    Int?
+  packagingType   String?
+  packageDimensions String?
+  storageConditions String?
+  hazardClass     String?
+  unNumber        String?
+  packagingGroup  String?
+  // Origin Specific
+  originCountry   String?
+  originRegion    String?
+  originMunicipality String?
+  originGpsLat    Float?
+  originGpsLng    Float?
+  productionDate  DateTime?
+  batchNumber     String?
+  // Destination Specific
+  destinationCountry String?
+  destinationCustoms String?
+  consigneeAddress String?
+  incoterm        String?
+  incotermPoint   String?
+  // Blockchain
+  blockchainHash  String?
+  qrCodeUrl       String?
+  
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  permits     Permit[]
-  containers  Container[]
-  documents   Document[]
+  permits         Permit[]
+  containers      Container[]
+  documents       Document[]
+  cargoDetails    CargoDetail[]
+  custodyRecords  ChainOfCustody[]
+  claims          Claim[]
+  crewAssignments CrewAssignment[]
 }
 
 model Vessel {
@@ -94,6 +133,12 @@ model Document {
   status     String   @default("Vigente")
   fileSize   String?
   category   String?
+  // Expanded document fields
+  documentSubtype String?
+  issuingAuthority String?
+  documentNumber String?
+  isVerified  Boolean  @default(false)
+  blockchainHash String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 }
@@ -106,4 +151,155 @@ model Port {
   timezone  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// ===== NEW MODELS =====
+
+model Crew {
+  id                String   @id @default(cuid())
+  fullName          String
+  licenseId         String   @unique
+  nationality       String
+  identityDoc       String?
+  identityDocType   String?  // Pasaporte, Cédula, etc.
+  certifications    String?  // JSON: [{name, number, expiryDate}]
+  carrierCompany    String?
+  emergencyContact  String?
+  licenseExpiry     DateTime?
+  role              String   @default("Capitán") // Capitán, Piloto, Oficial, Marinero
+  status            String   @default("Activo")  // Activo, Inactivo, Licencia Vencida, En viaje
+  photoUrl          String?
+  email             String?
+  phone             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  assignments CrewAssignment[]
+}
+
+model CrewAssignment {
+  id          String   @id @default(cuid())
+  crewId      String
+  crew        Crew     @relation(fields: [crewId], references: [id], onDelete: Cascade)
+  shipmentId  String
+  shipment    Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  role        String   // Capitán, Jefe de Máquinas, Oficial de Cubierta, etc.
+  assignedAt  DateTime @default(now())
+  remarks     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([crewId, shipmentId])
+}
+
+model CargoDetail {
+  id              String   @id @default(cuid())
+  shipmentId      String
+  shipment        Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  // Clasificación del Producto
+  description     String   // Descripción comercial
+  hsCode          String?  // Código HS (6, 8 o 10 dígitos)
+  hsDescription   String?  // Descripción HS oficial
+  category        String?  // Categoría normativa
+  subcategory     String?  // Subcategoría
+  // Características Físicas
+  grossWeight     Float?
+  netWeight       Float?
+  weightUnit      String?  @default("kg")
+  volume          Float?   // m³
+  packageCount    Int?
+  packagingType   String?  // Saco, Caja, Tambor, Tanque, etc.
+  packageDimensions String?
+  storageTemp     String?
+  storageHumidity String?
+  storageVentilation String?
+  hazardClass     String?  // Clase ADR/IMDG
+  unNumber        String?  // Número ONU
+  packagingGroup  String?  // Grupo de embalaje
+  // Origen Específico
+  originCountry   String?
+  originRegion    String?
+  originMunicipality String?
+  originGpsLat    Float?
+  originGpsLng    Float?
+  productionDate  DateTime?
+  batchNumber     String?
+  // Destino Específico
+  destinationCountry String?
+  destinationCustoms String?
+  consigneeAddress String?
+  incoterm        String?
+  incotermPoint   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model ChainOfCustody {
+  id                String   @id @default(cuid())
+  shipmentId        String
+  shipment          Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  stage             String   // Productor, Acopio, Exportador, Agente de carga, Naviera, Agente destino, Importador
+  fromParty         String
+  toParty           String
+  transferDate      DateTime @default(now())
+  responsiblePerson String?
+  conditionsVerified String? // JSON: [{condition, verified}]
+  digitalSignature  String?
+  photoEvidence     String?
+  temperature       Float?
+  sealsIntact       Boolean?
+  notes             String?
+  status            String   @default("Completado") // Completado, Pendiente, En proceso
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Claim {
+  id                String   @id @default(cuid())
+  shipmentId        String
+  shipment          Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  type              String   // Rechazo en aduana, Daño de mercancía, Documentación incompleta, Retraso, Contaminación
+  reason            String
+  customsRejection  Boolean  @default(false)
+  incidentCost      Float?
+  lessonsLearned    String?
+  status            String   @default("Abierto") // Abierto, En investigación, Resuelto, Cerrado
+  reportedDate      DateTime @default(now())
+  resolvedDate      DateTime?
+  resolution        String?
+  reportedBy        String?
+  destinationCountry String?
+  regulatoryChange  Boolean  @default(false)
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model CountryRequirement {
+  id              String   @id @default(cuid())
+  productCategory String   // Alimento agrícola, Producto forestal, Textil, Químico, etc.
+  country         String
+  requirementName String
+  isMandatory     Boolean  @default(true)
+  maxResidueLevel String?
+  localLanguageLabel String?
+  description     String?
+  regulation      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model ComplianceCostItem {
+  id              String   @id @default(cuid())
+  category        String   // Certificación, Inspección, Demora, Arancel
+  name            String
+  description     String?
+  estimatedCost   Float
+  currency        String   @default("USD")
+  appliesToCountry String?
+  appliesToProduct String?
+  isRequired      Boolean  @default(true)
+  savingsIfCompliant Float?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
