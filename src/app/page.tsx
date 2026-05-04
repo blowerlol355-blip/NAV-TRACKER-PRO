@@ -26,14 +26,36 @@ export default function Home() {
   useEffect(() => {
     if (!dataInitialized && !seedingRef.current) {
       seedingRef.current = true
-      fetch('/api/seed', { method: 'POST' })
-        .then((r) => r.json())
-        .then(() => {
+      // First ensure seed runs, then verify data is actually available
+      const init = async () => {
+        try {
+          // Step 1: Seed the database
+          await fetch('/api/seed', { method: 'POST' })
+          // Step 2: Wait a moment for DB write to complete
+          await new Promise(r => setTimeout(r, 500))
+          // Step 3: Verify data is available
+          const checkRes = await fetch('/api/dashboard')
+          if (checkRes.ok) {
+            const checkData = await checkRes.json()
+            if (checkData?.kpis) {
+              setDataInitialized(true)
+              return
+            }
+          }
+          // Step 4: Retry if not ready
+          await new Promise(r => setTimeout(r, 2000))
+          const retryRes = await fetch('/api/dashboard')
+          if (retryRes.ok) {
+            setDataInitialized(true)
+          } else {
+            // Last resort - still mark as initialized to show error UI
+            setDataInitialized(true)
+          }
+        } catch {
           setDataInitialized(true)
-        })
-        .catch(() => {
-          setDataInitialized(true)
-        })
+        }
+      }
+      init()
     }
   }, [dataInitialized, setDataInitialized])
 
@@ -53,9 +75,15 @@ export default function Home() {
             >
               {!dataInitialized ? (
                 <div className="flex items-center justify-center h-64">
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="w-10 h-10 border-3 border-teal-500 border-t-transparent rounded-full animate-spin" />
-                    <p className="text-sm text-muted-foreground">Inicializando datos...</p>
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="relative">
+                      <div className="w-12 h-12 border-[3px] border-teal-500/30 border-t-teal-500 rounded-full animate-spin" />
+                      <div className="absolute inset-0 w-12 h-12 border-[3px] border-transparent border-b-teal-300/50 rounded-full animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1.5s' }} />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-medium text-foreground">Inicializando datos...</p>
+                      <p className="text-xs text-muted-foreground mt-1">Cargando base de datos marítima</p>
+                    </div>
                   </div>
                 </div>
               ) : (

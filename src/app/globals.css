@@ -177,3 +177,90 @@ html {
 .animate-pulse-glow {
   animation: pulse-glow 2s ease-in-out infinite;
 }
+
+/* Shimmer effect for loading/skeleton states */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent 0%, oklch(0.7 0.02 170 / 8%) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2s ease-in-out infinite;
+}
+
+/* Gradient text effect for headings */
+.gradient-text {
+  background: linear-gradient(135deg, #14b8a6, #0ea5e9);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Glassmorphism card effect */
+.glass-card {
+  background: oklch(1 0 0 / 70%);
+  backdrop-filter: blur(12px);
+  border: 1px solid oklch(1 0 0 / 20%);
+}
+
+.dark .glass-card {
+  background: oklch(0.2 0 0 / 60%);
+  border: 1px solid oklch(1 0 0 / 8%);
+}
+
+/* Animated gradient border */
+@keyframes gradient-border {
+  0%, 100% { border-color: oklch(0.7 0.15 170 / 30%); }
+  50% { border-color: oklch(0.7 0.15 200 / 50%); }
+}
+
+.animate-gradient-border {
+  animation: gradient-border 3s ease-in-out infinite;
+}
+
+/* Floating animation for decorative elements */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+
+.animate-float {
+  animation: float 4s ease-in-out infinite;
+}
+
+/* Subtle glow effect for active elements */
+.glow-teal {
+  box-shadow: 0 0 15px oklch(0.7 0.15 170 / 15%), 0 0 30px oklch(0.7 0.15 170 / 5%);
+}
+
+.dark .glow-teal {
+  box-shadow: 0 0 15px oklch(0.7 0.15 170 / 25%), 0 0 30px oklch(0.7 0.15 170 / 10%);
+}
+
+/* Smooth transition for dark mode */
+html.dark {
+  color-scheme: dark;
+}
+
+/* Enhanced focus ring */
+:focus-visible {
+  outline: 2px solid oklch(0.7 0.15 170 / 50%);
+  outline-offset: 2px;
+}
+
+/* Table row hover effect enhancement */
+.table-row-hover {
+  transition: all 0.2s ease;
+}
+
+.table-row-hover:hover {
+  background: oklch(0.95 0.01 170);
+  box-shadow: inset 3px 0 0 oklch(0.7 0.15 170);
+}
+
+.dark .table-row-hover:hover {
+  background: oklch(0.22 0.01 170);
+  box-shadow: inset 3px 0 0 oklch(0.7 0.15 170 / 60%);
+}

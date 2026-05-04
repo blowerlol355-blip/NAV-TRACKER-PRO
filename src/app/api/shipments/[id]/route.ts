@@ -70,6 +70,12 @@ export async function PUT(
       "clientId",
       "clientName",
       "notes",
+      "destinationCountry",
+      "regulatoryCategory",
+      "incoterm",
+      "packagingType",
+      "hsCode",
+      "productDescription",
     ];
 
     for (const field of fields) {
