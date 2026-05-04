@@ -1,0 +1,109 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Shipment {
+  id              String   @id @default(cuid())
+  reference       String   @unique
+  blNumber        String?  @default("PENDIENTE")
+  origin          String
+  destination     String
+  originPort      String
+  destinationPort String
+  status          String   @default("Registrado")
+  cargoType       String
+  weight          Float
+  containerCount  Int      @default(0)
+  value           Float?
+  eta             DateTime?
+  departureDate   DateTime?
+  arrivalDate     DateTime?
+  vesselId        String?
+  vessel          Vessel?  @relation(fields: [vesselId], references: [id])
+  clientId        String?
+  clientName      String?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  permits     Permit[]
+  containers  Container[]
+  documents   Document[]
+}
+
+model Vessel {
+  id              String   @id @default(cuid())
+  name            String
+  imo             String   @unique
+  flag            String
+  type            String
+  capacity        Int
+  currentLocation String?
+  status          String   @default("En tránsito")
+  speed           Float?
+  built           Int?
+  owner           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  shipments Shipment[]
+}
+
+model Permit {
+  id          String   @id @default(cuid())
+  type        String
+  number      String   @unique
+  shipmentId  String
+  shipment    Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  issueDate   DateTime?
+  expiryDate  DateTime?
+  status      String   @default("Pendiente")
+  authority   String
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Container {
+  id         String   @id @default(cuid())
+  number     String   @unique
+  type       String
+  shipmentId String
+  shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  weight     Float
+  status     String   @default("Vacío")
+  sealNumber String?
+  dimensions String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Document {
+  id         String   @id @default(cuid())
+  name       String
+  type       String
+  shipmentId String
+  shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  uploadDate DateTime @default(now())
+  expiryDate DateTime?
+  status     String   @default("Vigente")
+  fileSize   String?
+  category   String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Port {
+  id        String   @id @default(cuid())
+  name      String
+  country   String
+  code      String   @unique
+  timezone  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
