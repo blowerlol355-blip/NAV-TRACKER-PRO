@@ -1,7 +1,7 @@
 'use client'
 
 import { useAppStore, type TabId } from '@/lib/store'
-import { Search, Bell, Sun, Moon, RefreshCw, CheckCircle, AlertTriangle, AlertCircle, Info } from 'lucide-react'
+import { Search, Bell, Sun, Moon, RefreshCw, CheckCircle, AlertTriangle, AlertCircle, Info, Clock, Globe } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
@@ -93,6 +93,7 @@ export function Header() {
   const { activeTab, setActiveTab, setSearchOpen } = useAppStore()
   const [darkMode, setDarkMode] = useState(false)
   const [currentTime, setCurrentTime] = useState('')
+  const [utcTime, setUtcTime] = useState('')
   const [isRefreshing, setIsRefreshing] = useState(false)
   const initializedRef = useRef(false)
 
@@ -193,9 +194,12 @@ export function Header() {
           ' • ' +
           now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
       )
+      setUtcTime(
+        now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'UTC', hour12: false })
+      )
     }
     updateTime()
-    const interval = setInterval(updateTime, 60000)
+    const interval = setInterval(updateTime, 1000)
     return () => clearInterval(interval)
   }, [])
 
@@ -369,6 +373,23 @@ export function Header() {
         </Popover>
 
         <div className="h-6 w-px bg-border" />
+
+        {/* UTC Clock Widget */}
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r from-slate-800 to-slate-900 dark:from-slate-700 dark:to-slate-800 text-white shadow-sm">
+          <div className="flex items-center gap-1.5">
+            <Globe className="w-3.5 h-3.5 text-teal-400" />
+            <span className="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">UTC</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Clock className="w-3 h-3 text-teal-400" />
+            <span className="text-xs font-mono font-bold tracking-wider tabular-nums">{utcTime}</span>
+          </div>
+          <motion.div
+            className="w-1.5 h-1.5 rounded-full bg-teal-400"
+            animate={{ opacity: [1, 0.3, 1] }}
+            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+          />
+        </div>
 
         <span className="text-[11px] text-muted-foreground whitespace-nowrap font-mono">{currentTime}</span>
 

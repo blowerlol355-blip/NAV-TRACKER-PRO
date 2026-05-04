@@ -19,6 +19,7 @@ import { Separator } from '@/components/ui/separator'
 import {
   Search, MapPin, Globe, Clock, Landmark, Anchor, Warehouse,
   Ship, ArrowRightLeft, Eye, Building2, BarChart3, ChevronRight,
+  Activity, AlertTriangle, Users
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -385,6 +386,72 @@ export function Ports() {
       </div>
 
       {/* Regional distribution pills */}
+      {/* Port Congestion Indicators */}
+      <Card className="overflow-hidden">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Activity className="w-4 h-4 text-teal-500" />
+            <h3 className="text-sm font-semibold">Congestión Portuaria</h3>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            {ports.slice(0, 6).map((port) => {
+              const count = shipmentCountsByPort[port.code] || 0
+              const congestionLevel = count >= 4 ? 'high' : count >= 2 ? 'medium' : 'low'
+              const congestionColor = congestionLevel === 'high'
+                ? 'bg-red-100 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                : congestionLevel === 'medium'
+                  ? 'bg-amber-100 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'
+                  : 'bg-emerald-100 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800'
+              const congestionDot = congestionLevel === 'high'
+                ? 'bg-red-500'
+                : congestionLevel === 'medium'
+                  ? 'bg-amber-500'
+                  : 'bg-emerald-500'
+              const congestionLabel = congestionLevel === 'high'
+                ? 'Alta'
+                : congestionLevel === 'medium'
+                  ? 'Media'
+                  : 'Baja'
+
+              return (
+                <motion.div
+                  key={port.id}
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  whileHover={{ scale: 1.02 }}
+                  className={`p-3 rounded-lg border ${congestionColor} transition-all cursor-pointer`}
+                  onClick={() => openPortDetail(port)}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-semibold truncate">{port.name}</span>
+                    <span className={`w-2 h-2 rounded-full ${congestionDot} ${congestionLevel === 'high' ? 'animate-pulse' : ''}`} />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-muted-foreground">{count} envíos</span>
+                    <Badge variant="secondary" className={`text-[9px] h-4 px-1.5 ${
+                      congestionLevel === 'high' ? 'bg-red-200 text-red-800 dark:bg-red-800 dark:text-red-200' :
+                      congestionLevel === 'medium' ? 'bg-amber-200 text-amber-800 dark:bg-amber-800 dark:text-amber-200' :
+                      'bg-emerald-200 text-emerald-800 dark:bg-emerald-800 dark:text-emerald-200'
+                    }`}>
+                      {congestionLabel}
+                    </Badge>
+                  </div>
+                  {/* Mini congestion bar */}
+                  <div className="mt-2 h-1.5 bg-black/10 dark:bg-white/10 rounded-full overflow-hidden">
+                    <motion.div
+                      className={`h-full rounded-full ${congestionDot}`}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${Math.min((count / 6) * 100, 100)}%` }}
+                      transition={{ duration: 0.8, ease: 'easeOut' }}
+                    />
+                  </div>
+                </motion.div>
+              )
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="flex flex-wrap items-center gap-2">
         {regionCounts.map(([region, count]) => (
           <div

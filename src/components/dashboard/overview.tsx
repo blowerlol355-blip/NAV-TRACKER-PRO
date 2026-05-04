@@ -14,7 +14,7 @@ import {
   PackageCheck, Sailboat, FileUp, AlertCircle, BarChart3, PieChart as PieChartIcon,
   Inbox, RefreshCw, FileText, CheckCircle, Eye, ChevronRight,
   Gauge, Timer, Navigation, Container, Activity,
-  Upload, Bell, Download
+  Upload, Bell, Download, Cloud, Droplets, Wind, Thermometer, Waves as WavesIcon
 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
@@ -788,6 +788,97 @@ function PerformanceMetricsCard({ kpis, activeShipments }: { kpis: DashboardData
   )
 }
 
+// ==================== Weather/Sea Conditions Panel ====================
+const MOCK_WEATHER_DATA = [
+  { route: 'Caribe → Miami', port: 'USMIA', wind: 15, windDir: 'NE', waves: 1.2, temp: 28, humidity: 78, condition: 'Parcialmente nublado', icon: '⛅', severity: 'normal' as const },
+  { route: 'La Guaira → Rotterdam', port: 'NLRDM', wind: 25, windDir: 'O', waves: 2.8, temp: 14, humidity: 85, condition: 'Lluvia ligera', icon: '🌧️', severity: 'warning' as const },
+  { route: 'Shanghái → Yokohama', port: 'JPYOK', wind: 8, windDir: 'SE', waves: 0.6, temp: 22, humidity: 65, condition: 'Despejado', icon: '☀️', severity: 'normal' as const },
+  { route: 'Barcelona → Hamburgo', port: 'DEHAM', wind: 35, windDir: 'NO', waves: 3.5, temp: 8, humidity: 92, condition: 'Tormenta', icon: '⛈️', severity: 'danger' as const },
+]
+
+function WeatherSeaConditionsPanel() {
+  const severityColors = {
+    normal: 'border-l-teal-400',
+    warning: 'border-l-amber-400',
+    danger: 'border-l-red-400',
+  }
+  const severityBg = {
+    normal: 'bg-teal-50 dark:bg-teal-950/20',
+    warning: 'bg-amber-50 dark:bg-amber-950/20',
+    danger: 'bg-red-50 dark:bg-red-950/20',
+  }
+
+  return (
+    <Card className="h-full">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base font-semibold flex items-center gap-2">
+          <Cloud className="w-4 h-4 text-sky-500" />
+          Condiciones Meteorológicas y Marítimas
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">Estado del mar en rutas activas</p>
+      </CardHeader>
+      <CardContent className="space-y-2 pt-0">
+        {MOCK_WEATHER_DATA.map((w, i) => (
+          <motion.div
+            key={w.route}
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.1 * i, duration: 0.3 }}
+            className={`border-l-4 ${severityColors[w.severity]} rounded-lg p-3 ${severityBg[w.severity]} hover:shadow-sm transition-shadow`}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">{w.icon}</span>
+                <div>
+                  <p className="text-xs font-semibold">{w.route}</p>
+                  <p className="text-[10px] text-muted-foreground">{w.condition}</p>
+                </div>
+              </div>
+              <Badge variant="secondary" className={`text-[9px] h-5 ${
+                w.severity === 'danger' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+                w.severity === 'warning' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400'
+              }`}>
+                {w.severity === 'danger' ? 'Peligro' : w.severity === 'warning' ? 'Precaución' : 'Normal'}
+              </Badge>
+            </div>
+            <div className="grid grid-cols-4 gap-2">
+              <div className="flex items-center gap-1">
+                <Wind className="w-3 h-3 text-sky-500" />
+                <div>
+                  <p className="text-[9px] text-muted-foreground">Viento</p>
+                  <p className="text-[11px] font-semibold">{w.wind} nudos {w.windDir}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <WavesIcon className="w-3 h-3 text-teal-500" />
+                <div>
+                  <p className="text-[9px] text-muted-foreground">Oleaje</p>
+                  <p className="text-[11px] font-semibold">{w.waves}m</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <Thermometer className="w-3 h-3 text-orange-500" />
+                <div>
+                  <p className="text-[9px] text-muted-foreground">Temp.</p>
+                  <p className="text-[11px] font-semibold">{w.temp}°C</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <Droplets className="w-3 h-3 text-sky-500" />
+                <div>
+                  <p className="text-[9px] text-muted-foreground">Humedad</p>
+                  <p className="text-[11px] font-semibold">{w.humidity}%</p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        ))}
+      </CardContent>
+    </Card>
+  )
+}
+
 // ==================== MAIN COMPONENT ====================
 export function Overview() {
   const [data, setData] = useState<DashboardData | null>(null)
@@ -978,7 +1069,7 @@ export function Overview() {
               animate="visible"
             >
               <GradientBorderCard fromColor={kpi.gradientFrom} toColor={kpi.gradientTo}>
-                <Card className="relative overflow-hidden border-0 shadow-sm hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
+                <Card className="relative overflow-hidden border-0 shadow-sm hover:shadow-xl transition-all duration-300 hover:scale-[1.02]" style={{ perspective: '800px', transformStyle: 'preserve-3d' }}>
                   {/* Glassmorphism bg */}
                   <div className="absolute inset-0 bg-gradient-to-br from-white/80 to-white/40 dark:from-gray-900/80 dark:to-gray-900/40 backdrop-blur-sm" />
 
@@ -1220,6 +1311,37 @@ export function Overview() {
                   <EmptyChartState icon={PieChartIcon} title="Estado de Envíos" />
                 )}
               </div>
+
+              {/* Status Distribution Heatmap */}
+              {hasPieData && (
+                <div className="mt-3 pt-3 border-t">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-2">Mapa de calor por estado</p>
+                  <div className="grid grid-cols-7 gap-1">
+                    {data.chartData.statusDistribution.map((item, idx) => {
+                      const maxValue = Math.max(...data.chartData.statusDistribution.map(d => d.value))
+                      const intensity = maxValue > 0 ? item.value / maxValue : 0
+                      const heatColor = intensity > 0.7
+                        ? 'bg-teal-500 text-white'
+                        : intensity > 0.4
+                          ? 'bg-teal-300 dark:bg-teal-700 text-white'
+                          : 'bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300'
+                      return (
+                        <TooltipRadix key={item.name}>
+                          <TooltipTrigger asChild>
+                            <div className={`rounded-md p-2 text-center ${heatColor} cursor-default transition-transform hover:scale-105`}>
+                              <p className="text-[9px] font-medium truncate">{item.name}</p>
+                              <p className="text-sm font-bold">{item.value}</p>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="text-xs">{item.name}: {item.value} envíos ({Math.round(intensity * 100)}%)</p>
+                          </TooltipContent>
+                        </TooltipRadix>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </motion.div>
@@ -1247,6 +1369,15 @@ export function Overview() {
           <PerformanceMetricsCard kpis={data.kpis} activeShipments={data.kpis.activeShipments} />
         </motion.div>
       </div>
+
+      {/* ==================== WEATHER / SEA CONDITIONS ==================== */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.65, duration: 0.4 }}
+      >
+        <WeatherSeaConditionsPanel />
+      </motion.div>
 
       {/* ==================== RECENT SHIPMENTS TABLE ==================== */}
       <motion.div

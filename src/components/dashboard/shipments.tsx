@@ -25,6 +25,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import { exportToCSV, printTable } from '@/lib/export-utils'
+import { ShipmentTimeline } from '@/components/dashboard/shipment-timeline'
 
 // ── Workflow Stages ──────────────────────────────────────────────────────────
 const WORKFLOW_STEPS = [
@@ -528,6 +529,9 @@ export function Shipments() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Shipment Timeline View */}
+      <ShipmentTimeline />
 
       {/* Data Table */}
       <Card className="overflow-hidden border-0 shadow-sm">
