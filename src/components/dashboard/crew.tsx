@@ -19,10 +19,11 @@ import {
   Users, UserCheck, Navigation, AlertTriangle, XCircle, Search, Plus,
   ChevronDown, ChevronRight, Phone, Mail, Shield, Award, FileCheck,
   Ship, Eye, UserPlus, IdCard, Globe2, Building2, Calendar, Clock,
-  Ban, AlertOctagon
+  Ban, AlertOctagon, Download, Printer
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
+import { exportToCSV, printTable } from '@/lib/export-utils'
 
 const STATUS_COLORS: Record<string, string> = {
   'Activo': 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400',
@@ -265,10 +266,55 @@ export function Crew() {
             <span className="text-xs font-semibold text-red-700 dark:text-red-300">{expiredLicenses} Vencidas</span>
           </div>
           <div className="ml-auto">
-            <Button onClick={() => setShowAdd(true)} className="h-9 bg-teal-600 hover:bg-teal-700 gap-1.5 group">
-              <UserPlus className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />
-              Agregar Tripulante
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={() => {
+                  if (filteredCrew.length === 0) { toast.error('No hay datos para exportar'); return }
+                  exportToCSV(`tripulacion_${new Date().toISOString().slice(0, 10)}`, filteredCrew.map((c) => ({
+                    Nombre: c.fullName, Licencia: c.licenseId, Rol: c.role,
+                    Nacionalidad: c.nacionalidad, Empresa: c.carrierCompany || '',
+                    'Licencia Vence': c.licenseExpiry ? new Date(c.licenseExpiry).toLocaleDateString('es-MX') : '',
+                    Estado: c.status,
+                  })))
+                  toast.success('Datos exportados exitosamente')
+                }}
+                variant="outline"
+                size="sm"
+                className="h-9 gap-1.5 border-teal-200 text-teal-700 hover:bg-teal-50 dark:border-teal-800 dark:text-teal-300 dark:hover:bg-teal-950/30"
+              >
+                <Download className="w-4 h-4" />
+                Exportar CSV
+              </Button>
+              <Button
+                onClick={() => {
+                  if (filteredCrew.length === 0) { toast.error('No hay datos para imprimir'); return }
+                  printTable('Tripulación', [
+                    { key: 'Nombre', label: 'Nombre' },
+                    { key: 'Licencia', label: 'Licencia' },
+                    { key: 'Rol', label: 'Rol' },
+                    { key: 'Nacionalidad', label: 'Nacionalidad' },
+                    { key: 'Empresa', label: 'Empresa' },
+                    { key: 'Licencia Vence', label: 'Licencia Vence' },
+                    { key: 'Estado', label: 'Estado' },
+                  ], filteredCrew.map((c) => ({
+                    Nombre: c.fullName, Licencia: c.licenseId, Rol: c.role,
+                    Nacionalidad: c.nacionalidad, Empresa: c.carrierCompany || '',
+                    'Licencia Vence': c.licenseExpiry ? new Date(c.licenseExpiry).toLocaleDateString('es-MX') : '',
+                    Estado: c.status,
+                  })))
+                }}
+                variant="outline"
+                size="sm"
+                className="h-9 gap-1.5 border-teal-200 text-teal-700 hover:bg-teal-50 dark:border-teal-800 dark:text-teal-300 dark:hover:bg-teal-950/30"
+              >
+                <Printer className="w-4 h-4" />
+                Imprimir
+              </Button>
+              <Button onClick={() => setShowAdd(true)} className="h-9 bg-teal-600 hover:bg-teal-700 gap-1.5 group">
+                <UserPlus className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />
+                Agregar Tripulante
+              </Button>
+            </div>
           </div>
         </div>
 

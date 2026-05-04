@@ -18,10 +18,11 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/
 import {
   AlertTriangle, XCircle, Search, Plus, ChevronRight, Eye, FileWarning,
   ShieldAlert, CheckCircle2, X as XIcon, Clock, DollarSign, Gavel,
-  BookOpen, AlertOctagon, Flag, RefreshCw, TrendingUp, Ban
+  BookOpen, AlertOctagon, Flag, RefreshCw, TrendingUp, Ban, Download, Printer
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
+import { exportToCSV, printTable } from '@/lib/export-utils'
 
 // ─── Type definitions ───────────────────────────────────────────────
 
@@ -266,6 +267,49 @@ export function Claims() {
             <span className="text-xs font-semibold text-rose-700 dark:text-rose-300">Costo: {formatCurrency(totalCost)}</span>
           </div>
           <div className="ml-auto flex items-center gap-2">
+            <Button
+              onClick={() => {
+                if (filteredClaims.length === 0) { toast.error('No hay datos para exportar'); return }
+                exportToCSV(`reclamaciones_${new Date().toISOString().slice(0, 10)}`, filteredClaims.map((c) => ({
+                  'Ref. Envío': c.shipment?.reference || '', Tipo: c.type,
+                  Motivo: c.reason, 'Rechazo aduana': c.customsRejection ? 'Sí' : 'No',
+                  Costo: c.incidentCost ? formatCurrency(c.incidentCost) : '',
+                  Estado: c.status, 'Fecha Reporte': formatDate(c.reportedDate),
+                })))
+                toast.success('Datos exportados exitosamente')
+              }}
+              variant="outline"
+              size="sm"
+              className="h-9 gap-1.5 border-teal-200 text-teal-700 hover:bg-teal-50 dark:border-teal-800 dark:text-teal-300 dark:hover:bg-teal-950/30"
+            >
+              <Download className="w-4 h-4" />
+              Exportar CSV
+            </Button>
+            <Button
+              onClick={() => {
+                if (filteredClaims.length === 0) { toast.error('No hay datos para imprimir'); return }
+                printTable('Reclamaciones y Devoluciones', [
+                  { key: 'Ref. Envío', label: 'Ref. Envío' },
+                  { key: 'Tipo', label: 'Tipo' },
+                  { key: 'Motivo', label: 'Motivo' },
+                  { key: 'Rechazo aduana', label: 'Rechazo aduana' },
+                  { key: 'Costo', label: 'Costo' },
+                  { key: 'Estado', label: 'Estado' },
+                  { key: 'Fecha Reporte', label: 'Fecha Reporte' },
+                ], filteredClaims.map((c) => ({
+                  'Ref. Envío': c.shipment?.reference || '', Tipo: c.type,
+                  Motivo: c.reason, 'Rechazo aduana': c.customsRejection ? 'Sí' : 'No',
+                  Costo: c.incidentCost ? formatCurrency(c.incidentCost) : '',
+                  Estado: c.status, 'Fecha Reporte': formatDate(c.reportedDate),
+                })))
+              }}
+              variant="outline"
+              size="sm"
+              className="h-9 gap-1.5 border-teal-200 text-teal-700 hover:bg-teal-50 dark:border-teal-800 dark:text-teal-300 dark:hover:bg-teal-950/30"
+            >
+              <Printer className="w-4 h-4" />
+              Imprimir
+            </Button>
             {lessonsLearned.length > 0 && (
               <Button
                 variant="outline"

@@ -1,17 +1,19 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Separator } from '@/components/ui/separator'
+import { Tooltip as TooltipRadix, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import {
   Ship, FileCheck, Box, Anchor, AlertTriangle, Clock, FileX,
   DollarSign, TrendingUp, Route, ArrowRight, ExternalLink,
   PackageCheck, Sailboat, FileUp, AlertCircle, BarChart3, PieChart as PieChartIcon,
-  Inbox, RefreshCw, FileText, CheckCircle, Eye, ChevronRight
+  Inbox, RefreshCw, FileText, CheckCircle, Eye, ChevronRight,
+  Gauge, Timer, Navigation, Container, Activity
 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
@@ -133,7 +135,7 @@ const cardVariants = {
   visible: (i: number) => ({
     opacity: 1,
     y: 0,
-    transition: { delay: i * 0.08, duration: 0.4, ease: 'easeOut' },
+    transition: { delay: i * 0.08, duration: 0.4, ease: 'easeOut' as const },
   }),
 }
 
@@ -159,22 +161,36 @@ function getDaysRemaining(etaStr: string | null): string | null {
 }
 
 // ==================== Animated Number Component ====================
-function AnimatedNumber({ value, duration = 1.2 }: { value: number; duration?: number }) {
+function AnimatedNumber({ value, duration = 1.2, format }: { value: number; duration?: number; format?: 'number' | 'currency' | 'decimal' | 'percent' }) {
   const motionVal = useMotionValue(0)
-  const rounded = useTransform(motionVal, (latest) => Math.round(latest))
-  const [display, setDisplay] = useState(0)
+  const [display, setDisplay] = useState('0')
+
+  const formatValue = useCallback((v: number) => {
+    switch (format) {
+      case 'currency':
+        if (v >= 1000000) return `$${(v / 1000000).toFixed(1)}M`
+        if (v >= 1000) return `$${(v / 1000).toFixed(1)}K`
+        return `$${Math.round(v).toLocaleString()}`
+      case 'decimal':
+        return v.toFixed(1)
+      case 'percent':
+        return `${Math.round(v)}%`
+      default:
+        return Math.round(v).toLocaleString()
+    }
+  }, [format])
 
   useEffect(() => {
     const controls = animate(motionVal, value, {
       duration,
       ease: 'easeOut',
     })
-    const unsub = rounded.on('change', (v) => setDisplay(v))
+    const unsub = motionVal.on('change', (v) => setDisplay(formatValue(v)))
     return () => {
       controls.stop()
       unsub()
     }
-  }, [value, duration, motionVal, rounded])
+  }, [value, duration, motionVal, formatValue])
 
   return <span>{display}</span>
 }
@@ -287,6 +303,489 @@ function MaritimePieTooltip({ active, payload }: { active?: boolean; payload?: A
   )
 }
 
+// ==================== Port Coordinates for Route Map ====================
+const PORT_COORDS: Record<string, { x: number; y: number; label: string }> = {
+  'VELGU': { x: 245, y: 215, label: 'La Guaira' },
+  'USMIA': { x: 215, y: 170, label: 'Miami' },
+  'NLRDM': { x: 400, y: 130, label: 'Rotterdam' },
+  'CNSHA': { x: 680, y: 170, label: 'Shanghái' },
+  'PAPTY': { x: 225, y: 210, label: 'Panamá' },
+  'DEHAM': { x: 415, y: 125, label: 'Hamburgo' },
+  'ESBCN': { x: 375, y: 155, label: 'Barcelona' },
+  'COCTG': { x: 235, y: 210, label: 'Cartagena' },
+  'BRSSZ': { x: 280, y: 260, label: 'Santos' },
+  'JPYOK': { x: 700, y: 165, label: 'Yokohama' },
+}
+
+const ROUTE_STATUS_COLORS: Record<string, string> = {
+  'En tránsito': '#14b8a6',
+  'Con retraso': '#ef4444',
+  'Entregado': '#22c55e',
+}
+
+const DEFAULT_ROUTE_COLOR = '#f59e0b'
+
+// ==================== Route Map Visualization Component ====================
+function RouteMapVisualization({ shipments }: { shipments: DashboardData['recentShipments'] }) {
+  const [hoveredRoute, setHoveredRoute] = useState<string | null>(null)
+  const [tooltipInfo, setTooltipInfo] = useState<{ x: number; y: number; shipment: typeof shipments[0] } | null>(null)
+
+  const uniqueRoutes = useMemo(() => {
+    const seen = new Set<string>()
+    return shipments.filter((s) => {
+      const key = `${s.originPort}-${s.destinationPort}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  }, [shipments])
+
+  // Calculate curved path between two points
+  const getCurvedPath = (x1: number, y1: number, x2: number, y2: number) => {
+    const midX = (x1 + x2) / 2
+    const midY = (y1 + y2) / 2
+    const dx = x2 - x1
+    const dy = y2 - y1
+    const dist = Math.sqrt(dx * dx + dy * dy)
+    const curvature = Math.min(dist * 0.3, 60)
+    const cx = midX - dy * 0.3
+    const cy = midY - curvature * 0.5
+    return `M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`
+  }
+
+  return (
+    <>
+      <style>{`
+        @keyframes shipMove {
+          0% { offset-distance: 0%; }
+          100% { offset-distance: 100%; }
+        }
+        @keyframes dashMove {
+          0% { stroke-dashoffset: 20; }
+          100% { stroke-dashoffset: 0; }
+        }
+        .route-path {
+          animation: dashMove 1.5s linear infinite;
+        }
+        .ship-icon {
+          offset-path: path(var(--route-path));
+          animation: shipMove 6s linear infinite;
+        }
+      `}</style>
+      <Card className="h-full overflow-hidden">
+        <CardHeader className="pb-2 flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <Navigation className="w-4 h-4 text-teal-500" />
+              Mapa de Rutas Marítimas
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">Rutas activas de envíos</p>
+          </div>
+        </CardHeader>
+        <CardContent className="p-2 sm:p-4">
+          <div className="relative w-full" style={{ paddingBottom: '50%' }}>
+            <svg
+              viewBox="0 0 800 400"
+              className="absolute inset-0 w-full h-full"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              {/* Ocean background */}
+              <defs>
+                <radialGradient id="oceanGrad" cx="50%" cy="50%" r="70%">
+                  <stop offset="0%" stopColor="currentColor" className="text-slate-50 dark:text-slate-900" />
+                  <stop offset="100%" stopColor="currentColor" className="text-slate-100 dark:text-slate-950" />
+                </radialGradient>
+                <filter id="glow">
+                  <feGaussianBlur stdDeviation="2" result="coloredBlur" />
+                  <feMerge>
+                    <feMergeNode in="coloredBlur" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
+              </defs>
+
+              {/* Ocean */}
+              <rect width="800" height="400" fill="url(#oceanGrad)" rx="8" />
+
+              {/* Simplified continents */}
+              {/* North America */}
+              <path d="M 80 80 L 130 65 L 180 70 L 230 65 L 260 90 L 270 110 L 260 130 L 240 140 L 230 170 L 210 175 L 195 170 L 180 180 L 165 185 L 155 195 L 145 190 L 130 180 L 110 185 L 95 180 L 80 170 L 70 150 L 65 130 L 70 110 Z"
+                fill="currentColor" className="text-slate-200 dark:text-slate-800" stroke="currentColor" strokeWidth="0.5" />
+              {/* Central America */}
+              <path d="M 195 185 L 210 190 L 225 195 L 240 200 L 245 210 L 240 215 L 225 220 L 215 215 L 205 210 L 195 205 L 190 195 Z"
+                fill="currentColor" className="text-slate-200 dark:text-slate-800" stroke="currentColor" strokeWidth="0.5" />
+              {/* South America */}
+              <path d="M 215 220 L 230 218 L 255 225 L 275 240 L 290 260 L 285 290 L 275 310 L 260 325 L 245 335 L 235 330 L 230 315 L 225 300 L 220 275 L 215 250 L 210 235 Z"
+                fill="currentColor" className="text-slate-200 dark:text-slate-800" stroke="currentColor" strokeWidth="0.5" />
+              {/* Europe */}
+              <path d="M 370 85 L 395 80 L 420 85 L 435 95 L 440 110 L 435 125 L 420 135 L 400 140 L 385 150 L 375 155 L 365 150 L 355 140 L 350 125 L 355 110 L 360 100 Z"
+                fill="currentColor" className="text-slate-200 dark:text-slate-800" stroke="currentColor" strokeWidth="0.5" />
+              {/* Africa */}
+              <path d="M 375 165 L 400 160 L 420 170 L 430 185 L 435 205 L 430 230 L 420 255 L 405 270 L 390 275 L 380 265 L 370 245 L 365 220 L 360 200 L 365 180 Z"
+                fill="currentColor" className="text-slate-200 dark:text-slate-800" stroke="currentColor" strokeWidth="0.5" />
+              {/* Asia */}
+              <path d="M 445 80 L 500 70 L 560 75 L 620 80 L 670 90 L 700 100 L 720 120 L 715 140 L 700 155 L 680 165 L 660 170 L 640 165 L 610 160 L 580 155 L 550 150 L 520 140 L 490 130 L 465 120 L 450 105 L 445 90 Z"
+                fill="currentColor" className="text-slate-200 dark:text-slate-800" stroke="currentColor" strokeWidth="0.5" />
+              {/* Australia */}
+              <path d="M 630 260 L 660 255 L 690 260 L 710 275 L 715 295 L 705 310 L 685 320 L 660 325 L 640 315 L 630 295 L 625 275 Z"
+                fill="currentColor" className="text-slate-200 dark:text-slate-800" stroke="currentColor" strokeWidth="0.5" />
+
+              {/* Grid lines (subtle) */}
+              {[100, 200, 300, 400, 500, 600, 700].map((x) => (
+                <line key={`vline-${x}`} x1={x} y1="0" x2={x} y2="400" stroke="currentColor" className="text-slate-200 dark:text-slate-800" strokeWidth="0.3" strokeDasharray="4 8" />
+              ))}
+              {[80, 160, 240, 320].map((y) => (
+                <line key={`hline-${y}`} x1="0" y1={y} x2="800" y2={y} stroke="currentColor" className="text-slate-200 dark:text-slate-800" strokeWidth="0.3" strokeDasharray="4 8" />
+              ))}
+
+              {/* Shipping Routes */}
+              {uniqueRoutes.map((shipment) => {
+                const origin = PORT_COORDS[shipment.originPort]
+                const dest = PORT_COORDS[shipment.destinationPort]
+                if (!origin || !dest) return null
+
+                const routeKey = `${shipment.originPort}-${shipment.destinationPort}`
+                const routeColor = ROUTE_STATUS_COLORS[shipment.status] || DEFAULT_ROUTE_COLOR
+                const isHovered = hoveredRoute === routeKey
+                const pathD = getCurvedPath(origin.x, origin.y, dest.x, dest.y)
+
+                return (
+                  <g key={routeKey}>
+                    {/* Route path - glow effect on hover */}
+                    {isHovered && (
+                      <path
+                        d={pathD}
+                        fill="none"
+                        stroke={routeColor}
+                        strokeWidth="6"
+                        opacity="0.2"
+                        filter="url(#glow)"
+                      />
+                    )}
+                    {/* Route path - dashed animated */}
+                    <path
+                      d={pathD}
+                      fill="none"
+                      stroke={routeColor}
+                      strokeWidth={isHovered ? 2.5 : 1.8}
+                      strokeDasharray="8 4"
+                      className="route-path"
+                      opacity={isHovered ? 1 : 0.7}
+                      style={{ '--route-path': `'${pathD}'`, cursor: 'pointer' } as React.CSSProperties}
+                      onMouseEnter={() => {
+                        setHoveredRoute(routeKey)
+                        const midX = (origin.x + dest.x) / 2
+                        const midY = Math.min(origin.y, dest.y) - 20
+                        setTooltipInfo({ x: midX, y: midY, shipment })
+                      }}
+                      onMouseLeave={() => {
+                        setHoveredRoute(null)
+                        setTooltipInfo(null)
+                      }}
+                    />
+                    {/* Animated ship dot */}
+                    <circle r="3" fill={routeColor} className="ship-icon" style={{ '--route-path': `'${pathD}'` } as React.CSSProperties} opacity={isHovered ? 1 : 0.8} />
+                    {/* Origin dot */}
+                    <circle
+                      cx={origin.x} cy={origin.y} r={isHovered ? 5 : 4}
+                      fill={routeColor} stroke="white" strokeWidth="1.5"
+                      className="transition-all duration-200"
+                    />
+                    {/* Destination dot */}
+                    <circle
+                      cx={dest.x} cy={dest.y} r={isHovered ? 5 : 4}
+                      fill={routeColor} stroke="white" strokeWidth="1.5"
+                      className="transition-all duration-200"
+                    />
+                    {/* Port labels */}
+                    <text
+                      x={origin.x} y={origin.y - 8}
+                      textAnchor="middle" fontSize="8"
+                      fill="currentColor" className="text-slate-600 dark:text-slate-400"
+                      fontWeight="600"
+                    >
+                      {shipment.originPort}
+                    </text>
+                    <text
+                      x={dest.x} y={dest.y - 8}
+                      textAnchor="middle" fontSize="8"
+                      fill="currentColor" className="text-slate-600 dark:text-slate-400"
+                      fontWeight="600"
+                    >
+                      {shipment.destinationPort}
+                    </text>
+                  </g>
+                )
+              })}
+
+              {/* Tooltip on hover */}
+              {tooltipInfo && (
+                <g>
+                  <rect
+                    x={tooltipInfo.x - 80} y={tooltipInfo.y - 38}
+                    width="160" height="32" rx="6"
+                    fill="currentColor" className="text-slate-900 dark:text-slate-100"
+                    opacity="0.92"
+                  />
+                  <text
+                    x={tooltipInfo.x} y={tooltipInfo.y - 22}
+                    textAnchor="middle" fontSize="8" fill="white"
+                    fontWeight="600"
+                  >
+                    {tooltipInfo.shipment.reference}
+                  </text>
+                  <text
+                    x={tooltipInfo.x} y={tooltipInfo.y - 12}
+                    textAnchor="middle" fontSize="7" fill="white"
+                    opacity="0.85"
+                  >
+                    {tooltipInfo.shipment.originPort} → {tooltipInfo.shipment.destinationPort} • {tooltipInfo.shipment.status}
+                  </text>
+                </g>
+              )}
+            </svg>
+          </div>
+          {/* Legend */}
+          <div className="flex flex-wrap items-center gap-4 mt-3 px-1">
+            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Leyenda:</span>
+            {[
+              { label: 'En tránsito', color: '#14b8a6' },
+              { label: 'Con retraso', color: '#ef4444' },
+              { label: 'Entregado', color: '#22c55e' },
+              { label: 'Otros', color: '#f59e0b' },
+            ].map((item) => (
+              <div key={item.label} className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                <span className="text-xs text-muted-foreground">{item.label}</span>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </>
+  )
+}
+
+// ==================== Circular Progress Component ====================
+function CircularProgress({ value, size = 60, strokeWidth = 5, color = '#14b8a6' }: { value: number; size?: number; strokeWidth?: number; color?: string }) {
+  const radius = (size - strokeWidth) / 2
+  const circumference = 2 * Math.PI * radius
+  const offset = circumference - (value / 100) * circumference
+
+  return (
+    <svg width={size} height={size} className="transform -rotate-90">
+      {/* Background circle */}
+      <circle
+        cx={size / 2} cy={size / 2} r={radius}
+        fill="none" stroke="currentColor" className="text-muted/30"
+        strokeWidth={strokeWidth}
+      />
+      {/* Progress circle */}
+      <motion.circle
+        cx={size / 2} cy={size / 2} r={radius}
+        fill="none" stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeDasharray={circumference}
+        initial={{ strokeDashoffset: circumference }}
+        animate={{ strokeDashoffset: offset }}
+        transition={{ duration: 1.5, ease: 'easeOut', delay: 0.3 }}
+      />
+    </svg>
+  )
+}
+
+// ==================== Performance Metrics Card ====================
+function PerformanceMetricsCard({ kpis, activeShipments }: { kpis: DashboardData['kpis']; activeShipments: number }) {
+  const transitMonths = [
+    { name: 'Jul', dias: 20 },
+    { name: 'Ago', dias: 17 },
+    { name: 'Sep', dias: 19 },
+    { name: 'Oct', dias: 16 },
+    { name: 'Nov', dias: 18 },
+    { name: 'Dic', dias: 18.5 },
+  ]
+  const maxDays = 25
+
+  const metrics = [
+    {
+      icon: Timer,
+      label: 'Tiempo promedio de tránsito',
+      value: '18.5',
+      unit: 'días',
+      color: 'text-amber-500',
+      bg: 'bg-amber-500/15',
+      ring: 'ring-amber-500/30',
+    },
+    {
+      icon: Gauge,
+      label: 'Tasa de cumplimiento',
+      value: '87',
+      unit: '%',
+      color: 'text-teal-500',
+      bg: 'bg-teal-500/15',
+      ring: 'ring-teal-500/30',
+    },
+    {
+      icon: DollarSign,
+      label: 'Valor en tránsito',
+      value: '12.4',
+      unit: 'M',
+      prefix: '$',
+      color: 'text-emerald-500',
+      bg: 'bg-emerald-500/15',
+      ring: 'ring-emerald-500/30',
+    },
+    {
+      icon: Activity,
+      label: 'Envíos este mes',
+      value: String(activeShipments),
+      unit: '',
+      color: 'text-sky-500',
+      bg: 'bg-sky-500/15',
+      ring: 'ring-sky-500/30',
+    },
+    {
+      icon: Container,
+      label: 'Contenedores despachados',
+      value: String(kpis.inTransitContainers),
+      unit: '',
+      color: 'text-violet-500',
+      bg: 'bg-violet-500/15',
+      ring: 'ring-violet-500/30',
+    },
+  ]
+
+  return (
+    <Card className="h-full">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base font-semibold flex items-center gap-2">
+          <Gauge className="w-4 h-4 text-teal-500" />
+          Métricas de Rendimiento
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">Indicadores clave de desempeño</p>
+      </CardHeader>
+      <CardContent className="space-y-3 pt-0">
+        {/* Transit time with mini bar chart */}
+        <motion.div
+          className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors group"
+          whileHover={{ scale: 1.01 }}
+          transition={{ duration: 0.15 }}
+        >
+          <div className={`w-9 h-9 rounded-lg ${metrics[0].bg} flex items-center justify-center ring-1 ${metrics[0].ring}`}>
+            <Timer className={`w-4 h-4 ${metrics[0].color}`} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] text-muted-foreground">{metrics[0].label}</p>
+            <div className="flex items-baseline gap-1">
+              <span className="text-lg font-bold">{metrics[0].value}</span>
+              <span className="text-xs text-muted-foreground">{metrics[0].unit}</span>
+            </div>
+          </div>
+          {/* Mini bar chart */}
+          <div className="flex items-end gap-[3px] h-7">
+            {transitMonths.map((m, i) => (
+              <motion.div
+                key={m.name}
+                className="w-[7px] rounded-t-sm bg-amber-400/70 group-hover:bg-amber-500 transition-colors"
+                initial={{ height: 0 }}
+                animate={{ height: `${(m.dias / maxDays) * 28}px` }}
+                transition={{ duration: 0.5, delay: 0.1 * i, ease: 'easeOut' }}
+              />
+            ))}
+          </div>
+        </motion.div>
+
+        {/* Compliance rate with circular progress */}
+        <motion.div
+          className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors group"
+          whileHover={{ scale: 1.01 }}
+          transition={{ duration: 0.15 }}
+        >
+          <div className={`w-9 h-9 rounded-lg ${metrics[1].bg} flex items-center justify-center ring-1 ${metrics[1].ring}`}>
+            <Gauge className={`w-4 h-4 ${metrics[1].color}`} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] text-muted-foreground">{metrics[1].label}</p>
+            <div className="flex items-baseline gap-1">
+              <span className="text-lg font-bold">{metrics[1].value}</span>
+              <span className="text-xs text-muted-foreground">{metrics[1].unit}</span>
+            </div>
+          </div>
+          <CircularProgress value={87} size={44} strokeWidth={4} color="#14b8a6" />
+        </motion.div>
+
+        {/* Value in transit */}
+        <motion.div
+          className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors group"
+          whileHover={{ scale: 1.01 }}
+          transition={{ duration: 0.15 }}
+        >
+          <div className={`w-9 h-9 rounded-lg ${metrics[2].bg} flex items-center justify-center ring-1 ${metrics[2].ring}`}>
+            <DollarSign className={`w-4 h-4 ${metrics[2].color}`} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] text-muted-foreground">{metrics[2].label}</p>
+            <div className="flex items-baseline gap-1">
+              <span className="text-lg font-bold">$12.4M</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 text-emerald-500 text-xs font-medium">
+            <TrendingUp className="w-3 h-3" />
+            +5.2%
+          </div>
+        </motion.div>
+
+        {/* Shipments this month */}
+        <motion.div
+          className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors group"
+          whileHover={{ scale: 1.01 }}
+          transition={{ duration: 0.15 }}
+        >
+          <div className={`w-9 h-9 rounded-lg ${metrics[3].bg} flex items-center justify-center ring-1 ${metrics[3].ring}`}>
+            <Activity className={`w-4 h-4 ${metrics[3].color}`} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] text-muted-foreground">{metrics[3].label}</p>
+            <div className="flex items-baseline gap-1">
+              <span className="text-lg font-bold">
+                <AnimatedNumber value={activeShipments} format="number" />
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 text-sky-500 text-xs font-medium">
+            <TrendingUp className="w-3 h-3" />
+            +12%
+          </div>
+        </motion.div>
+
+        {/* Containers dispatched */}
+        <motion.div
+          className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors group"
+          whileHover={{ scale: 1.01 }}
+          transition={{ duration: 0.15 }}
+        >
+          <div className={`w-9 h-9 rounded-lg ${metrics[4].bg} flex items-center justify-center ring-1 ${metrics[4].ring}`}>
+            <Container className={`w-4 h-4 ${metrics[4].color}`} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] text-muted-foreground">{metrics[4].label}</p>
+            <div className="flex items-baseline gap-1">
+              <span className="text-lg font-bold">
+                <AnimatedNumber value={kpis.inTransitContainers} format="number" />
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 text-violet-500 text-xs font-medium">
+            <TrendingUp className="w-3 h-3" />
+            +8%
+          </div>
+        </motion.div>
+      </CardContent>
+    </Card>
+  )
+}
+
 // ==================== MAIN COMPONENT ====================
 export function Overview() {
   const [data, setData] = useState<DashboardData | null>(null)
@@ -379,6 +878,10 @@ export function Overview() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <Skeleton className="h-80 rounded-xl" />
           <Skeleton className="h-80 rounded-xl" />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+          <Skeleton className="lg:col-span-3 h-80 rounded-xl" />
+          <Skeleton className="lg:col-span-2 h-80 rounded-xl" />
         </div>
         <Skeleton className="h-64 rounded-xl" />
       </div>
@@ -713,6 +1216,29 @@ export function Overview() {
               </div>
             </CardContent>
           </Card>
+        </motion.div>
+      </div>
+
+      {/* ==================== ROUTE MAP & PERFORMANCE METRICS ==================== */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        {/* Route Map - takes 3 columns */}
+        <motion.div
+          className="lg:col-span-3"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.55, duration: 0.4 }}
+        >
+          <RouteMapVisualization shipments={data.recentShipments} />
+        </motion.div>
+
+        {/* Performance Metrics - takes 2 columns */}
+        <motion.div
+          className="lg:col-span-2"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6, duration: 0.4 }}
+        >
+          <PerformanceMetricsCard kpis={data.kpis} activeShipments={data.kpis.activeShipments} />
         </motion.div>
       </div>
 

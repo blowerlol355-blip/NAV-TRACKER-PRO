@@ -18,6 +18,7 @@ import { ExpirationCalendar } from '@/components/dashboard/calendar'
 import { Comparator } from '@/components/dashboard/comparator'
 import { Simulator } from '@/components/dashboard/simulator'
 import { AnimatePresence, motion } from 'framer-motion'
+import { SearchCommand } from '@/components/layout/search-command'
 
 export default function Home() {
   const { activeTab, dataInitialized, setDataInitialized } = useAppStore()
@@ -60,6 +61,7 @@ export default function Home() {
   }, [dataInitialized, setDataInitialized])
 
   return (
+    <>
     <div className="flex h-screen bg-background overflow-hidden">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -108,5 +110,7 @@ export default function Home() {
         </main>
       </div>
     </div>
+    <SearchCommand />
+    </>
   )
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,8 +10,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Plus, Anchor, Ship, Gauge, Calendar, Building2, Flag, MapPin, Navigation, Clock, Package, ArrowRight } from 'lucide-react'
-import { motion } from 'framer-motion'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Plus, Anchor, Ship, Gauge, Calendar, Building2, Flag, MapPin, Navigation, Clock, Package,
+  ArrowRight, Printer, FileSpreadsheet, Search, LayoutGrid, List, Wrench, Activity,
+  Cog, Globe2, BarChart3, Container
+} from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { exportToCSV, printTable } from '@/lib/export-utils'
 
 const VESSEL_STATUS_COLORS: Record<string, string> = {
   'En tránsito': 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400',
@@ -31,6 +40,15 @@ const VESSEL_STATUS_ACCENT: Record<string, string> = {
   'En reparación': 'bg-red-500',
 }
 
+const VESSEL_STATUS_BORDER: Record<string, string> = {
+  'En tránsito': 'border-l-teal-500',
+  'En puerto': 'border-l-sky-500',
+  'Cargando': 'border-l-amber-500',
+  'Descargando': 'border-l-orange-500',
+  'En mantenimiento': 'border-l-red-500',
+  'En reparación': 'border-l-red-500',
+}
+
 const VESSEL_TYPES = ['Portacontenedores', 'Granelero', 'Tanque', 'Multipropósito', 'Ro-Ro', 'Crucero']
 
 const FLAG_EMOJIS: Record<string, string> = {
@@ -40,6 +58,8 @@ const FLAG_EMOJIS: Record<string, string> = {
   'Marshall Islands': '🇲🇭',
   'Hong Kong': '🇭🇰',
   'Singapore': '🇸🇬',
+  'Malta': '🇲🇹',
+  'Bahamas': '🇧🇸',
   'China': '🇨🇳',
   'Greece': '🇬🇷',
   'Japan': '🇯🇵',
@@ -114,6 +134,18 @@ function getCapacityUtilization(vessel: Vessel): number {
   return util
 }
 
+function getUtilizationColor(util: number): string {
+  if (util > 80) return 'bg-red-500'
+  if (util > 60) return 'bg-amber-500'
+  return 'bg-teal-500'
+}
+
+function getUtilizationTextColor(util: number): string {
+  if (util > 80) return 'text-red-600 dark:text-red-400'
+  if (util > 60) return 'text-amber-600 dark:text-amber-400'
+  return 'text-teal-600 dark:text-teal-400'
+}
+
 export function Vessels() {
   const [vessels, setVessels] = useState<Vessel[]>([])
   const [loading, setLoading] = useState(true)
@@ -121,6 +153,11 @@ export function Vessels() {
   const [selectedVessel, setSelectedVessel] = useState<Vessel | null>(null)
   const [vesselShipments, setVesselShipments] = useState<Shipment[]>([])
   const [loadingShipments, setLoadingShipments] = useState(false)
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [typeFilter, setTypeFilter] = useState('all')
+  const [flagFilter, setFlagFilter] = useState('all')
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards')
 
   useEffect(() => {
     fetch('/api/vessels')
@@ -171,6 +208,72 @@ export function Vessels() {
   const inTransit = vessels.filter(v => v.status === 'En tránsito').length
   const inPort = vessels.filter(v => v.status === 'En puerto').length
   const underRepair = vessels.filter(v => ['En mantenimiento', 'En reparación'].includes(v.status)).length
+  const avgSpeed = vessels.length > 0
+    ? (vessels.reduce((sum, v) => sum + (v.speed || 0), 0) / vessels.filter(v => v.speed !== null).length).toFixed(1)
+    : '0'
+  const totalCapacity = vessels.reduce((sum, v) => sum + v.capacity, 0)
+
+  // Filtered vessels
+  const filteredVessels = vessels.filter(v => {
+    if (search && !v.name.toLowerCase().includes(search.toLowerCase()) && !v.imo.toLowerCase().includes(search.toLowerCase())) return false
+    if (statusFilter !== 'all' && v.status !== statusFilter) return false
+    if (typeFilter !== 'all' && v.type !== typeFilter) return false
+    if (flagFilter !== 'all' && v.flag !== flagFilter) return false
+    return true
+  })
+
+  // Unique flags for filter
+  const uniqueFlags = [...new Set(vessels.map(v => v.flag))].sort()
+
+  // Export handlers
+  const handleExportCSV = () => {
+    const data = filteredVessels.map(v => ({
+      name: v.name,
+      imo: v.imo,
+      flag: `${getFlagEmoji(v.flag)} ${v.flag}`,
+      type: v.type,
+      capacity: v.capacity.toString(),
+      speed: v.speed?.toString() || '',
+      built: v.built?.toString() || '',
+      owner: v.owner || '',
+      location: v.currentLocation || '',
+      status: v.status,
+      utilization: `${getCapacityUtilization(v)}%`,
+    }))
+    exportToCSV('embarcaciones-navtrack', data, {
+      name: 'Nombre',
+      imo: 'IMO',
+      flag: 'Bandera',
+      type: 'Tipo',
+      capacity: 'Capacidad (TEU)',
+      speed: 'Velocidad (nudos)',
+      built: 'Año Construcción',
+      owner: 'Propietario',
+      location: 'Ubicación',
+      status: 'Estado',
+      utilization: 'Utilización',
+    })
+  }
+
+  const handlePrint = () => {
+    printTable('Embarcaciones', [
+      { key: 'name', label: 'Nombre' },
+      { key: 'imo', label: 'IMO' },
+      { key: 'flag', label: 'Bandera' },
+      { key: 'type', label: 'Tipo' },
+      { key: 'capacity', label: 'Capacidad (TEU)' },
+      { key: 'location', label: 'Ubicación' },
+      { key: 'status', label: 'Estado' },
+    ], filteredVessels.map(v => ({
+      name: v.name,
+      imo: v.imo,
+      flag: `${getFlagEmoji(v.flag)} ${v.flag}`,
+      type: v.type,
+      capacity: v.capacity.toLocaleString(),
+      location: v.currentLocation || '',
+      status: v.status,
+    })))
+  }
 
   if (loading) {
     return (
@@ -182,143 +285,366 @@ export function Vessels() {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }} className="space-y-4">
-      {/* Summary Stats Bar */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-teal-500/10 border border-teal-500/20">
-          <Ship className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
-          <span className="text-xs font-semibold text-teal-700 dark:text-teal-300">{totalVessels} Total</span>
-        </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-teal-500/10 border border-teal-500/20">
-          <Navigation className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
-          <span className="text-xs font-semibold text-teal-700 dark:text-teal-300">{inTransit} En tránsito</span>
-        </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-sky-500/10 border border-sky-500/20">
-          <Anchor className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
-          <span className="text-xs font-semibold text-sky-700 dark:text-sky-300">{inPort} En puerto</span>
-        </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-500/10 border border-red-500/20">
-          <Gauge className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
-          <span className="text-xs font-semibold text-red-700 dark:text-red-300">{underRepair} En reparación</span>
-        </div>
-        <div className="ml-auto">
-          <Button onClick={() => setShowAdd(true)} className="h-9 bg-teal-600 hover:bg-teal-700">
-            <Plus className="w-4 h-4 mr-1" /> Nueva Embarcación
-          </Button>
-        </div>
+      {/* Enhanced Statistics Header */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0 }}>
+          <Card className="border-l-4 border-l-teal-500 hover:shadow-md transition-shadow">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground font-medium">Total Embarcaciones</p>
+                  <p className="text-2xl font-bold mt-1">{totalVessels}</p>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center">
+                  <Ship className="w-5 h-5 text-teal-600 dark:text-teal-400" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+          <Card className="border-l-4 border-l-emerald-500 hover:shadow-md transition-shadow">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground font-medium">Operativas</p>
+                  <p className="text-2xl font-bold mt-1">{inTransit + inPort}</p>
+                  <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">{totalVessels > 0 ? Math.round(((inTransit + inPort) / totalVessels) * 100) : 0}% del total</p>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                  <Activity className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+          <Card className="border-l-4 border-l-red-500 hover:shadow-md transition-shadow">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground font-medium">En Mantenimiento</p>
+                  <p className="text-2xl font-bold mt-1">{underRepair}</p>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                  <Wrench className="w-5 h-5 text-red-600 dark:text-red-400" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+          <Card className="border-l-4 border-l-sky-500 hover:shadow-md transition-shadow">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground font-medium">Velocidad Promedio</p>
+                  <p className="text-2xl font-bold mt-1">{avgSpeed}</p>
+                  <p className="text-[10px] text-sky-600 dark:text-sky-400 font-medium">nudos</p>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-sky-100 dark:bg-sky-900/30 flex items-center justify-center">
+                  <Gauge className="w-5 h-5 text-sky-600 dark:text-sky-400" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+          <Card className="border-l-4 border-l-orange-500 hover:shadow-md transition-shadow">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground font-medium">Capacidad Total</p>
+                  <p className="text-2xl font-bold mt-1">{totalCapacity.toLocaleString()}</p>
+                  <p className="text-[10px] text-orange-600 dark:text-orange-400 font-medium">TEU</p>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+                  <Container className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
 
-      {/* Vessel Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {vessels.map((v, i) => {
-          const utilization = getCapacityUtilization(v)
-          const isTransit = v.status === 'En tránsito'
-          const accentColor = VESSEL_STATUS_ACCENT[v.status] || 'bg-slate-500'
+      {/* Filter Bar */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input placeholder="Buscar por nombre o IMO..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-9" />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[170px] h-9"><SelectValue placeholder="Estado" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los estados</SelectItem>
+                <SelectItem value="En tránsito">En tránsito</SelectItem>
+                <SelectItem value="En puerto">En puerto</SelectItem>
+                <SelectItem value="Cargando">Cargando</SelectItem>
+                <SelectItem value="Descargando">Descargando</SelectItem>
+                <SelectItem value="En mantenimiento">En mantenimiento</SelectItem>
+                <SelectItem value="En reparación">En reparación</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger className="w-[170px] h-9"><SelectValue placeholder="Tipo" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los tipos</SelectItem>
+                {VESSEL_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={flagFilter} onValueChange={setFlagFilter}>
+              <SelectTrigger className="w-[170px] h-9"><SelectValue placeholder="Bandera" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas las banderas</SelectItem>
+                {uniqueFlags.map((f) => (
+                  <SelectItem key={f} value={f}>
+                    <span className="flex items-center gap-1.5">{getFlagEmoji(f)} {f}</span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex items-center gap-1 ml-auto">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={viewMode === 'cards' ? 'default' : 'outline'}
+                    size="sm"
+                    className={`h-9 w-9 p-0 ${viewMode === 'cards' ? 'bg-teal-600 hover:bg-teal-700' : ''}`}
+                    onClick={() => setViewMode('cards')}
+                  >
+                    <LayoutGrid className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Vista tarjetas</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={viewMode === 'table' ? 'default' : 'outline'}
+                    size="sm"
+                    className={`h-9 w-9 p-0 ${viewMode === 'table' ? 'bg-teal-600 hover:bg-teal-700' : ''}`}
+                    onClick={() => setViewMode('table')}
+                  >
+                    <List className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Vista tabla</TooltipContent>
+              </Tooltip>
+            </div>
+          </div>
+          <div className="flex items-center justify-between mt-3">
+            <p className="text-xs text-muted-foreground">{filteredVessels.length} embarcacion{filteredVessels.length !== 1 ? 'es' : ''} encontrada{filteredVessels.length !== 1 ? 's' : ''}</p>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleExportCSV}>
+                <FileSpreadsheet className="w-3.5 h-3.5 mr-1" /> CSV
+              </Button>
+              <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handlePrint}>
+                <Printer className="w-3.5 h-3.5 mr-1" /> Imprimir
+              </Button>
+              <Button onClick={() => setShowAdd(true)} className="h-8 text-xs bg-teal-600 hover:bg-teal-700">
+                <Plus className="w-3.5 h-3.5 mr-1" /> Nueva Embarcación
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-          return (
-            <motion.div key={v.id} custom={i} variants={cardVariants} initial="hidden" animate="visible">
-              <Card
-                className="hover:shadow-lg hover:border-teal-300 dark:hover:border-teal-700 transition-all duration-200 cursor-pointer relative overflow-hidden group"
-                onClick={() => handleOpenDetail(v)}
-              >
-                {/* Gradient accent on left side */}
-                <div className={`absolute left-0 top-0 bottom-0 w-[3px] ${accentColor}`} />
+      {/* Cards View */}
+      {viewMode === 'cards' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <AnimatePresence>
+            {filteredVessels.map((v, i) => {
+              const utilization = getCapacityUtilization(v)
+              const isTransit = v.status === 'En tránsito'
+              const accentColor = VESSEL_STATUS_ACCENT[v.status] || 'bg-slate-500'
 
-                <CardContent className="p-4 space-y-3 flex flex-col h-full">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-lg bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center">
-                        <Ship className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+              return (
+                <motion.div key={v.id} custom={i} variants={cardVariants} initial="hidden" animate="visible" exit={{ opacity: 0, scale: 0.95 }}>
+                  <Card
+                    className="hover:shadow-lg hover:border-teal-300 dark:hover:border-teal-700 transition-all duration-200 cursor-pointer relative overflow-hidden group"
+                    onClick={() => handleOpenDetail(v)}
+                  >
+                    {/* Gradient accent on left side */}
+                    <div className={`absolute left-0 top-0 bottom-0 w-[3px] ${accentColor}`} />
+
+                    <CardContent className="p-4 space-y-3 flex flex-col h-full">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-lg bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center">
+                            <Ship className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                          </div>
+                          <div>
+                            <p className="font-semibold text-sm leading-tight flex items-center gap-1">
+                              {getFlagEmoji(v.flag)} {v.name}
+                            </p>
+                            <p className="text-xs text-muted-foreground font-mono">IMO: {v.imo}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          {isTransit && (
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75" />
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-500" />
+                            </span>
+                          )}
+                          <Badge variant="secondary" className={`text-[10px] ${VESSEL_STATUS_COLORS[v.status] || ''}`}>
+                            {v.status}
+                          </Badge>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-semibold text-sm leading-tight">{v.name}</p>
-                        <p className="text-xs text-muted-foreground font-mono">IMO: {v.imo}</p>
+
+                      <div className="space-y-1.5 text-xs flex-1">
+                        <div className="flex items-center gap-2">
+                          <Flag className="w-3.5 h-3.5 text-muted-foreground" />
+                          <span>{getFlagEmoji(v.flag)} {v.flag}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Anchor className="w-3.5 h-3.5 text-muted-foreground" />
+                          <span>{v.type}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Package className="w-3.5 h-3.5 text-muted-foreground" />
+                          <span>Capacidad: {v.capacity.toLocaleString()} TEU</span>
+                        </div>
+                        {v.speed !== null && v.speed > 0 && (
+                          <div className="flex items-center gap-2">
+                            <Gauge className="w-3.5 h-3.5 text-muted-foreground" />
+                            <span>{v.speed} nudos</span>
+                          </div>
+                        )}
+                        {v.built && (
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+                            <span>Construido: {v.built}</span>
+                          </div>
+                        )}
+                        {v.owner && (
+                          <div className="flex items-center gap-2">
+                            <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
+                            <span>{v.owner}</span>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      {/* Animated pulse dot for transit */}
+
+                      {/* Location section - pushed to bottom */}
+                      <div className="mt-auto">
+                        {v.currentLocation && (
+                          <div className="pt-2 border-t">
+                            <p className="text-[10px] text-muted-foreground">Ubicación actual</p>
+                            <p className="text-xs font-medium">{v.currentLocation}</p>
+                          </div>
+                        )}
+
+                        {/* Capacity usage bar */}
+                        <div className="mt-2">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[10px] text-muted-foreground">Utilización</span>
+                            <span className={`text-[10px] font-medium ${getUtilizationTextColor(utilization)}`}>{utilization}%</span>
+                          </div>
+                          <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all duration-500 ${getUtilizationColor(utilization)}`}
+                              style={{ width: `${utilization}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Animated wave pattern for transit vessels */}
                       {isTransit && (
-                        <span className="relative flex h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75" />
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-500" />
-                        </span>
+                        <div className="absolute bottom-0 left-0 right-0 h-6 overflow-hidden opacity-20 dark:opacity-10">
+                          <div className="wave-pattern" />
+                        </div>
                       )}
-                      <Badge variant="secondary" className={`text-[10px] ${VESSEL_STATUS_COLORS[v.status] || ''}`}>
-                        {v.status}
-                      </Badge>
-                    </div>
-                  </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              )
+            })}
+          </AnimatePresence>
+        </div>
+      )}
 
-                  <div className="space-y-1.5 text-xs flex-1">
-                    <div className="flex items-center gap-2">
-                      <Flag className="w-3.5 h-3.5 text-muted-foreground" />
-                      <span>{getFlagEmoji(v.flag)} {v.flag}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Anchor className="w-3.5 h-3.5 text-muted-foreground" />
-                      <span>{v.type}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Package className="w-3.5 h-3.5 text-muted-foreground" />
-                      <span>Capacidad: {v.capacity.toLocaleString()} TEU</span>
-                    </div>
-                    {v.speed !== null && v.speed > 0 && (
-                      <div className="flex items-center gap-2">
-                        <Gauge className="w-3.5 h-3.5 text-muted-foreground" />
-                        <span>{v.speed} nudos</span>
-                      </div>
-                    )}
-                    {v.built && (
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
-                        <span>Construido: {v.built}</span>
-                      </div>
-                    )}
-                    {v.owner && (
-                      <div className="flex items-center gap-2">
-                        <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
-                        <span>{v.owner}</span>
-                      </div>
-                    )}
-                  </div>
+      {/* Table View */}
+      {viewMode === 'table' && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-semibold">Embarcaciones ({filteredVessels.length})</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <ScrollArea className="max-h-[calc(100vh-420px)]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nombre</TableHead>
+                    <TableHead>IMO</TableHead>
+                    <TableHead>Bandera</TableHead>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead>Capacidad</TableHead>
+                    <TableHead>Utilización</TableHead>
+                    <TableHead>Velocidad</TableHead>
+                    <TableHead>Ubicación</TableHead>
+                    <TableHead>Estado</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <AnimatePresence>
+                    {filteredVessels.map((v) => {
+                      const utilization = getCapacityUtilization(v)
 
-                  {/* Location section - pushed to bottom */}
-                  <div className="mt-auto">
-                    {v.currentLocation && (
-                      <div className="pt-2 border-t">
-                        <p className="text-[10px] text-muted-foreground">Ubicación actual</p>
-                        <p className="text-xs font-medium">{v.currentLocation}</p>
-                      </div>
-                    )}
-
-                    {/* Capacity usage bar */}
-                    <div className="mt-2">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-[10px] text-muted-foreground">Utilización</span>
-                        <span className="text-[10px] font-medium">{utilization}%</span>
-                      </div>
-                      <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all duration-500 ${
-                            utilization > 80 ? 'bg-red-500' : utilization > 60 ? 'bg-amber-500' : 'bg-teal-500'
-                          }`}
-                          style={{ width: `${utilization}%` }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Animated wave pattern for transit vessels */}
-                  {isTransit && (
-                    <div className="absolute bottom-0 left-0 right-0 h-6 overflow-hidden opacity-20 dark:opacity-10">
-                      <div className="wave-pattern" />
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </motion.div>
-          )
-        })}
-      </div>
+                      return (
+                        <motion.tr
+                          key={v.id}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          className={`border-l-4 cursor-pointer transition-all duration-200 hover:shadow-md hover:bg-muted/50 ${VESSEL_STATUS_BORDER[v.status] || ''}`}
+                          onClick={() => handleOpenDetail(v)}
+                        >
+                          <TableCell className="text-sm font-semibold flex items-center gap-1.5">
+                            <Ship className="w-4 h-4 text-teal-500" />
+                            {getFlagEmoji(v.flag)} {v.name}
+                          </TableCell>
+                          <TableCell className="text-sm font-mono">{v.imo}</TableCell>
+                          <TableCell className="text-sm">
+                            <span className="inline-flex items-center gap-1.5">
+                              {getFlagEmoji(v.flag)} {v.flag}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-sm">{v.type}</TableCell>
+                          <TableCell className="text-sm font-medium">{v.capacity.toLocaleString()} TEU</TableCell>
+                          <TableCell className="text-sm">
+                            <div className="flex items-center gap-2">
+                              <div className="w-20 h-2 bg-muted rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all duration-300 ${getUtilizationColor(utilization)}`}
+                                  style={{ width: `${utilization}%` }}
+                                />
+                              </div>
+                              <span className={`text-xs font-medium ${getUtilizationTextColor(utilization)}`}>{utilization}%</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-sm">{v.speed ? `${v.speed} nd` : '—'}</TableCell>
+                          <TableCell className="text-sm">{v.currentLocation || '—'}</TableCell>
+                          <TableCell>
+                            <Badge variant="secondary" className={`text-[10px] ${VESSEL_STATUS_COLORS[v.status] || ''}`}>{v.status}</Badge>
+                          </TableCell>
+                        </motion.tr>
+                      )
+                    })}
+                  </AnimatePresence>
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Vessel Detail Dialog */}
       <Dialog open={!!selectedVessel} onOpenChange={(open) => { if (!open) setSelectedVessel(null) }}>
@@ -331,18 +657,50 @@ export function Vessels() {
                     <Ship className="w-5 h-5 text-teal-600 dark:text-teal-400" />
                   </div>
                   <div>
-                    <p>{selectedVessel.name}</p>
+                    <p className="flex items-center gap-2">
+                      {getFlagEmoji(selectedVessel.flag)} {selectedVessel.name}
+                    </p>
                     <p className="text-sm font-normal text-muted-foreground font-mono">IMO: {selectedVessel.imo}</p>
                   </div>
                 </DialogTitle>
               </DialogHeader>
 
               <div className="space-y-4">
-                {/* Status & Basic Info */}
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge className={VESSEL_STATUS_COLORS[selectedVessel.status] || ''}>{selectedVessel.status}</Badge>
-                  <Badge variant="outline">{getFlagEmoji(selectedVessel.flag)} {selectedVessel.flag}</Badge>
-                  <Badge variant="outline">{selectedVessel.type}</Badge>
+                {/* Maritime themed card */}
+                <div className="relative rounded-xl overflow-hidden bg-gradient-to-br from-teal-50 via-sky-50 to-cyan-50 dark:from-teal-950/30 dark:via-sky-950/30 dark:to-cyan-950/30 border p-4">
+                  {/* Wave pattern decoration */}
+                  <div className="absolute bottom-0 left-0 right-0 h-8 overflow-hidden opacity-10">
+                    <svg viewBox="0 0 400 20" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+                      <path d="M0 10 Q50 0 100 10 Q150 20 200 10 Q250 0 300 10 Q350 20 400 10" fill="none" stroke="#0d9488" strokeWidth="2" />
+                    </svg>
+                  </div>
+
+                  {/* Status & Basic Info */}
+                  <div className="flex flex-wrap items-center gap-2 mb-3">
+                    <Badge className={VESSEL_STATUS_COLORS[selectedVessel.status] || ''}>{selectedVessel.status}</Badge>
+                    <Badge variant="outline">{getFlagEmoji(selectedVessel.flag)} {selectedVessel.flag}</Badge>
+                    <Badge variant="outline">{selectedVessel.type}</Badge>
+                  </div>
+
+                  {/* Capacity utilization visual */}
+                  <div className="mb-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-muted-foreground font-medium">Utilización de Capacidad</span>
+                      <span className={`text-sm font-bold ${getUtilizationTextColor(getCapacityUtilization(selectedVessel))}`}>
+                        {getCapacityUtilization(selectedVessel)}%
+                      </span>
+                    </div>
+                    <div className="w-full h-4 bg-white/50 dark:bg-black/20 rounded-full overflow-hidden relative">
+                      <div
+                        className={`h-full rounded-full transition-all duration-700 ${getUtilizationColor(getCapacityUtilization(selectedVessel))}`}
+                        style={{ width: `${getCapacityUtilization(selectedVessel)}%` }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="text-[10px] text-muted-foreground">0 TEU</span>
+                      <span className="text-[10px] text-muted-foreground">{selectedVessel.capacity.toLocaleString()} TEU</span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Info Grid */}
@@ -374,8 +732,8 @@ export function Vessels() {
                     <p className="text-sm font-semibold">{selectedVessel.currentLocation || '—'}</p>
                   </div>
                   <div className="p-3 rounded-lg bg-muted/50">
-                    <p className="text-[10px] text-muted-foreground mb-1">Utilización</p>
-                    <p className="text-sm font-semibold">{getCapacityUtilization(selectedVessel)}%</p>
+                    <p className="text-[10px] text-muted-foreground mb-1">Bandera</p>
+                    <p className="text-sm font-semibold">{getFlagEmoji(selectedVessel.flag)} {selectedVessel.flag}</p>
                   </div>
                 </div>
 
@@ -384,16 +742,16 @@ export function Vessels() {
                 {/* Related Shipments */}
                 <div>
                   <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
-                    <Package className="w-4 h-4 text-teal-500" /> Envíos relacionados
+                    <Package className="w-4 h-4 text-teal-500" /> Envíos activos ({vesselShipments.length})
                   </h4>
                   {loadingShipments ? (
                     <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
                   ) : vesselShipments.length === 0 ? (
                     <p className="text-sm text-muted-foreground">No hay envíos asignados a esta embarcación</p>
                   ) : (
-                    <div className="space-y-2">
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
                       {vesselShipments.map((s) => (
-                        <div key={s.id} className="flex items-center justify-between p-2 rounded-lg border bg-muted/30">
+                        <div key={s.id} className="flex items-center justify-between p-2 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors">
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-mono font-semibold text-teal-600 dark:text-teal-400">{s.reference}</span>
                             <span className="text-xs text-muted-foreground">{s.cargoType}</span>
@@ -467,7 +825,16 @@ export function Vessels() {
               </div>
               <div className="space-y-2">
                 <Label>Bandera</Label>
-                <Input name="flag" placeholder="🇵🇦 Panamá" required />
+                <Select name="flag" defaultValue="Panamá">
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(FLAG_EMOJIS).map(([name, emoji]) => (
+                      <SelectItem key={name} value={name}>
+                        <span className="flex items-center gap-1.5">{emoji} {name}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label>Tipo</Label>

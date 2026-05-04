@@ -11,6 +11,8 @@ interface AppState {
   toggleSidebar: () => void
   searchQuery: string
   setSearchQuery: (query: string) => void
+  searchOpen: boolean
+  setSearchOpen: (open: boolean) => void
   statusFilter: string
   setStatusFilter: (filter: string) => void
   cargoTypeFilter: string
@@ -26,6 +28,8 @@ export const useAppStore = create<AppState>((set) => ({
   toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
   searchQuery: '',
   setSearchQuery: (query) => set({ searchQuery: query }),
+  searchOpen: false,
+  setSearchOpen: (open) => set({ searchOpen: open }),
   statusFilter: 'all',
   setStatusFilter: (filter) => set({ statusFilter: filter }),
   cargoTypeFilter: 'all',

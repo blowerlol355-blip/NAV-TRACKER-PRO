@@ -7,6 +7,9 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search') || ''
     const status = searchParams.get('status') || ''
     const type = searchParams.get('type') || ''
+    const authority = searchParams.get('authority') || ''
+    const expiryFrom = searchParams.get('expiryFrom') || ''
+    const expiryTo = searchParams.get('expiryTo') || ''
 
     const where: Record<string, unknown> = {}
 
@@ -25,9 +28,34 @@ export async function GET(request: NextRequest) {
       where.type = type
     }
 
+    if (authority && authority !== 'all') {
+      where.authority = authority
+    }
+
+    // Expiry date range filter
+    const expiryConditions: Record<string, unknown>[] = []
+    if (expiryFrom) {
+      expiryConditions.push({ expiryDate: { gte: new Date(expiryFrom) } })
+    }
+    if (expiryTo) {
+      expiryConditions.push({ expiryDate: { lte: new Date(expiryTo) } })
+    }
+    if (expiryConditions.length > 0) {
+      where.AND = [...expiryConditions]
+    }
+
     const permits = await db.permit.findMany({
       where,
-      include: { shipment: { select: { reference: true } } },
+      include: {
+        shipment: {
+          select: {
+            reference: true,
+            origin: true,
+            destination: true,
+            status: true,
+          }
+        }
+      },
       orderBy: { createdAt: 'desc' },
     })
 

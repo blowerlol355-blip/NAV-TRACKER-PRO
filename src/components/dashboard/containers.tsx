@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -10,9 +11,11 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Search, Box, Scale, Package, ThermometerSnowflake, Container, ArrowUpRight,
-  Truck, Warehouse, CheckCircle2, AlertCircle, FileWarning
+  Truck, Warehouse, CheckCircle2, AlertCircle, FileWarning, Download, Printer
 } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { toast } from 'sonner'
+import { exportToCSV, printTable } from '@/lib/export-utils'
 
 const CONTAINER_STATUS_COLORS: Record<string, string> = {
   'Vacío': 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
@@ -190,6 +193,50 @@ export function Containers() {
                 })}
               </SelectContent>
             </Select>
+            <div className="ml-auto flex items-center gap-2">
+              <Button
+                onClick={() => {
+                  if (containers.length === 0) { toast.error('No hay datos para exportar'); return }
+                  exportToCSV(`contenedores_${new Date().toISOString().slice(0, 10)}`, containers.map((c) => ({
+                    Número: c.number, Tipo: c.type, Sello: c.sealNumber || '',
+                    'Peso (ton)': c.weight.toLocaleString(), Estado: c.status,
+                    'Envío': c.shipment?.reference || '',
+                  })))
+                  toast.success('Datos exportados exitosamente')
+                }}
+                variant="outline"
+                size="sm"
+                className="h-9 gap-1.5 border-teal-200 text-teal-700 hover:bg-teal-50 dark:border-teal-800 dark:text-teal-300 dark:hover:bg-teal-950/30"
+                disabled={loading}
+              >
+                <Download className="w-4 h-4" />
+                Exportar CSV
+              </Button>
+              <Button
+                onClick={() => {
+                  if (containers.length === 0) { toast.error('No hay datos para imprimir'); return }
+                  printTable('Contenedores', [
+                    { key: 'Número', label: 'Número' },
+                    { key: 'Tipo', label: 'Tipo' },
+                    { key: 'Sello', label: 'Sello' },
+                    { key: 'Peso (ton)', label: 'Peso (ton)' },
+                    { key: 'Estado', label: 'Estado' },
+                    { key: 'Envío', label: 'Envío' },
+                  ], containers.map((c) => ({
+                    Número: c.number, Tipo: c.type, Sello: c.sealNumber || '',
+                    'Peso (ton)': c.weight.toLocaleString(), Estado: c.status,
+                    'Envío': c.shipment?.reference || '',
+                  })))
+                }}
+                variant="outline"
+                size="sm"
+                className="h-9 gap-1.5 border-teal-200 text-teal-700 hover:bg-teal-50 dark:border-teal-800 dark:text-teal-300 dark:hover:bg-teal-950/30"
+                disabled={loading}
+              >
+                <Printer className="w-4 h-4" />
+                Imprimir
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

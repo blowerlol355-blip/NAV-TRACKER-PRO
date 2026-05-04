@@ -264,3 +264,67 @@ html.dark {
   background: oklch(0.22 0.01 170);
   box-shadow: inset 3px 0 0 oklch(0.7 0.15 170 / 60%);
 }
+
+/* Maritime themed badge pulse */
+@keyframes badge-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+.badge-pulse {
+  animation: badge-pulse 2s ease-in-out infinite;
+}
+
+/* Card hover lift effect */
+.card-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px oklch(0.5 0 0 / 10%);
+}
+
+.dark .card-lift:hover {
+  box-shadow: 0 8px 25px oklch(0 0 0 / 30%);
+}
+
+/* Staggered animation delay utility */
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.1s; }
+.stagger-3 { animation-delay: 0.15s; }
+.stagger-4 { animation-delay: 0.2s; }
+.stagger-5 { animation-delay: 0.25s; }
+.stagger-6 { animation-delay: 0.3s; }
+
+/* Maritime compass rotation */
+@keyframes compass-spin {
+  0% { transform: rotate(0deg); }
+  25% { transform: rotate(5deg); }
+  75% { transform: rotate(-5deg); }
+  100% { transform: rotate(0deg); }
+}
+
+.compass-animation {
+  animation: compass-spin 6s ease-in-out infinite;
+}
+
+/* Route line dash animation */
+@keyframes dashMove {
+  0% { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: -20; }
+}
+
+.dash-animate {
+  animation: dashMove 1.5s linear infinite;
+}
+
+/* Ship movement animation */
+@keyframes shipMove {
+  0% { offset-distance: 0%; }
+  100% { offset-distance: 100%; }
+}
+
+.ship-animate {
+  animation: shipMove 4s linear infinite;
+}
