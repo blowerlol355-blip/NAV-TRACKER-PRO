@@ -736,3 +736,212 @@ Stage Summary:
 4. **PDF report generation** for compliance summaries
 5. **Batch operations** for permits and documents
 6. **Dashboard customization** with drag-and-drop widgets
+
+---
+
+## Phase 10: Dashboard Resilience & Error Handling (Completed)
+
+---
+Task ID: 1
+Agent: Main
+Task: Improve NavTrack Pro Dashboard resilience and add server status features
+
+Work Log:
+
+### 1. Global API Helper with Retry Logic (`/src/lib/api-client.ts`)
+- Created `fetchWithRetry<T>(url, options?, retries=3, delay=1000)` function:
+  - Catches network errors and retries with exponential backoff (delay doubles each retry)
+  - Returns `null` on final failure instead of throwing (graceful degradation)
+  - Includes 15-second timeout per attempt using AbortController
+  - Generic type parameter `T` for typed responses
+  - Console warning on final failure with error details
+- Created `isServerAvailable()` function:
+  - Pings `/api/dashboard` endpoint with 5-second timeout
+  - Uses `cache: 'no-store'` to avoid stale responses
+  - Returns boolean (true = server responding, false = down)
+
+### 2. Server Status Banner (`/src/components/layout/server-status.tsx`)
+- Client component with 3 connection states: `connected`, `disconnected`, `restoring`
+- Disconnected state:
+  - Red banner with "Servidor desconectado - Reintentando..." text
+  - Pulsing red dot (animate-ping) for visual urgency
+  - WifiOff icon from Lucide
+  - Spinning RefreshCw icon during active retry
+  - "Reintentar ahora" button for manual retry
+  - Auto-retries every 10 seconds using useEffect interval
+- Restoring state (connection just restored):
+  - Green banner with "Conexión restaurada" text
+  - Wifi icon from Lucide
+  - Auto-hides after 3 seconds (transitions to connected/hidden)
+- Connected state: Returns null (no banner shown)
+- Animated entrance/exit using Framer Motion AnimatePresence
+- Initial server check on component mount
+
+### 3. Overview Component Improvements (`/src/components/dashboard/overview.tsx`)
+- Replaced raw `fetch()` calls with `fetchWithRetry` from api-client:
+  - `fetchDashboard()`: Now uses `fetchWithRetry<DashboardData>('/api/dashboard', undefined, 4, 1000)` — 4 retries with 1s initial delay and exponential backoff
+  - `fetchActivities()`: Now uses `fetchWithRetry<ActivityItem[]>('/api/activity', undefined, 2, 1000)` — 2 retries
+- Removed manual retry logic (setTimeout-based) that was prone to memory leaks
+- Removed unused `retryTimerRef` and `useRef` import
+- Enhanced error state message:
+  - Updated main description: "Esto puede deberse a que el servidor está iniciándose o desconectado."
+  - Added secondary message: "Los datos se cargarán cuando el servidor esté disponible."
+- Preserved "Reintentar" button functionality via retryCount state
+
+### 4. Error Boundary Component (`/src/components/error-boundary.tsx`)
+- Class-based React Error Boundary (required by React API)
+- `getDerivedStateFromError` captures error state
+- `componentDidCatch` logs errors to console for debugging
+- Error UI shows:
+  - Red AlertTriangle icon in circular background
+  - "Error inesperado" heading
+  - Descriptive Spanish message about temporary errors or unexpected data
+  - Error message display in monospace with max-height scroll (for debugging)
+  - "Reintentar" button that resets error state and re-renders children
+- Uses shadcn/ui Button component for consistent styling
+
+### 5. Page.tsx Updates (`/src/app/page.tsx`)
+- Added imports: `ServerStatusBanner` and `ErrorBoundary`
+- Placed `<ServerStatusBanner />` directly below `<Header />` in the layout
+- Wrapped `<AnimatePresence>` and all main content with `<ErrorBoundary>`
+- Added "Los datos se cargarán cuando el servidor esté disponible." message to init error state
+- All existing lazy loading, initialization logic, and search command preserved
+
+Stage Summary:
+- **1 new utility module** (api-client.ts) with fetchWithRetry + isServerAvailable
+- **1 new layout component** (server-status.tsx) with auto-retry connection monitoring
+- **1 new error component** (error-boundary.tsx) with React Error Boundary
+- **2 existing components improved** (overview.tsx, page.tsx)
+- **No new npm packages** used
+- **No API routes modified**
+- **All text in Spanish** throughout
+- **Lint passes** with zero errors
+- **Graceful degradation**: App shows meaningful messages instead of crashes when server is down
+
+---
+
+## Phase 11: Visual Enhancements - Quick Actions, Activity Timeline, Alert Cards, Footer (Completed)
+
+---
+Task ID: 4
+Agent: Main
+Task: Add Visual Enhancements to NavTrack Pro Dashboard
+
+Work Log:
+
+### 1. Quick Actions Widget (`/src/components/dashboard/overview.tsx`)
+- Added a row of 4 quick action buttons below KPI cards and above Quick Stats row
+- Buttons: "Nuevo Envío" (Ship icon), "Subir Documento" (Upload icon), "Ver Alertas" (Bell icon), "Exportar Datos" (Download icon)
+- Each button navigates to the relevant tab using `setActiveTab` from Zustand store
+- Styling: rounded-lg buttons with icon + text, teal-50 bg, teal-700 text, hover:bg-teal-100 transition
+- Wrapped in `motion.div` with staggered entrance animation (0.07s delay per button)
+- Added whileHover scale(1.03) and whileTap scale(0.97) micro-interactions
+- Responsive: 2 columns on mobile, 4 columns on sm+
+
+### 2. Recent Activity Timeline Compact Version (`/src/components/dashboard/overview.tsx`)
+- Modified existing activity timeline to show only the last 5 items (was showing all)
+- Added Activity icon next to "Actividad Reciente" title header
+- Each item is clickable and navigates to the related tab (shipments, permits, documents)
+- Added "Ver más" link with ChevronRight icon when there are more than 5 activities
+- "Ver más" navigates to dashboard tab
+- Fixed timeline connector line logic for compact display (only hides line for last visible item when total ≤ 5)
+
+### 3. Alert Cards Section Improvements (`/src/components/dashboard/overview.tsx`)
+- Added "Alertas" section header with uppercase tracking-wider styling
+- Added "Ver todas" link with ChevronRight icon that navigates to dashboard tab
+- Verified shake animation for critical alerts still works (delayed shipments trigger `x: [0, -2, 2, -1, 1, 0]` with repeatDelay: 3)
+- Increased progress bar animation duration from 1.0s to 1.2s for smoother mount animation
+- Changed "Ver detalles" button styling from inherited color to explicit teal-600 with hover state for better visibility
+- Progress bars animate from 0 to their value on mount (existing `motion.div` with `initial={{ width: 0 }}`)
+
+### 4. Footer Component (`/src/components/layout/footer.tsx`)
+- Created new slim footer component
+- Shows: "NavTrack Pro v2.0 • © 2026 NavTrack Systems • Última actualización: [timestamp]"
+- Timestamp auto-updates every second using useEffect interval
+- Uses `toLocaleString('es-VE')` for Spanish locale formatting
+- Styling: text-xs, text-muted-foreground, border-t, centered layout
+- Positioned as sticky footer at bottom of main content area
+
+### 5. Page.tsx Update
+- Imported Footer component from `@/components/layout/footer`
+- Added `<Footer />` between `</main>` and closing `</div>` of the flex-1 column
+- Preserved all existing direct imports and component structure
+
+### Files Modified:
+- `/src/components/dashboard/overview.tsx`: Added Quick Actions widget, compact Activity Timeline, enhanced Alert Cards section
+- `/src/components/layout/footer.tsx`: New file - Footer component with live timestamp
+- `/src/app/page.tsx`: Added Footer import and placement
+
+### New Icon Imports:
+- Added `Upload`, `Bell`, `Download` to Lucide icon imports in overview.tsx
+
+Stage Summary:
+- **4 new visual features** added to the dashboard
+- **Quick Actions**: 4-button navigation row with staggered animations
+- **Compact Activity Timeline**: Shows last 5 items with "Ver más" link
+- **Enhanced Alert Cards**: Section header, "Ver todas" link, improved button styling
+- **Footer**: Live-updating slim footer with version and copyright
+- **No new npm packages** used
+- **No API routes modified**
+- **All text in Spanish** throughout
+- **Lint passes** with zero errors
+- **All existing functionality preserved**
+
+---
+
+## Phase 11: Server Stability & Visual Enhancements (Completed)
+
+---
+Task ID: 1
+Agent: Main
+Task: Fix app loading issue, improve server stability, add visual enhancements
+
+Work Log:
+
+### 1. Server Stability Investigation
+- Diagnosed that the dev server crashes after ~25 seconds due to sandbox memory constraints
+- Tested multiple solutions: setsid, nohup, auto-restart scripts, NODE_OPTIONS
+- Found that `NODE_OPTIONS="--max-old-space-size=512"` significantly improves stability (10+ sequential requests succeed)
+- Sandbox kills all background processes after a period regardless of approach
+
+### 2. Frontend Resilience Improvements
+- **page.tsx**: Changed from lazy loading to direct imports for all 13 dashboard components (prevents chunk load failures)
+- **page.tsx**: Added 2-second delay before data initialization to reduce concurrent API requests
+- **api-client.ts**: Enhanced with fetchWithRetry (20s timeout, 2 retries), isServerAvailable (10s cache), updateServerState (passive tracking)
+- **server-status.tsx**: Rewritten with passive detection via global fetch interception, 2-failure threshold, auto-recovery
+- **header.tsx**: Delayed notification fetch by 5 seconds to reduce initial API load
+
+### 3. Error Handling
+- **ErrorBoundary**: Catches rendering errors with Spanish "Error inesperado" message + "Reintentar" button
+- **Init error state**: Shows "Error al cargar datos" with auto-recovery message when server unavailable
+- **ServerStatusBanner**: Shows "Servidor desconectado - Reintentando..." when server dies, auto-recovers
+
+### 4. Visual Enhancements (via subagent)
+- **Quick Actions Widget**: 4 action buttons in Overview (Nuevo Envío, Subir Documento, Ver Alertas, Exportar Datos) with staggered animation
+- **Compact Activity Timeline**: Shows last 5 items with "Ver más" link
+- **Enhanced Alert Cards**: Section header with "Ver todas" link, smoother progress bar animation
+- **Footer Component**: Shows version info, copyright, live-updating timestamp
+
+### 5. Package.json Update
+- Updated dev script with `NODE_OPTIONS='--max-old-space-size=512'` for better memory management
+
+Stage Summary:
+- Dashboard loads correctly when server is active (VLM rated 8/10)
+- 13 sections functional with data, charts, and navigation
+- Server stability improved with memory limit optimization
+- Resilience features: ErrorBoundary, ServerStatusBanner, fetchWithRetry, passive server detection
+- Visual enhancements: Quick Actions, compact timeline, enhanced alerts, footer
+- Lint passes with zero errors
+
+### Unresolved Issues / Risks:
+- Dev server still dies after ~25 seconds (sandbox limitation)
+- Auto-restart mechanisms are killed by sandbox along with the server process
+- Navigation to tabs that haven't loaded data will show empty state when server is down
+
+### Priority Recommendations for Next Phase:
+1. Production build (`next build`) would resolve server stability
+2. Service Worker for offline caching of API responses
+3. WebSocket for real-time updates
+4. Data caching in Zustand store to persist data across server restarts
+5. More visual improvements: dark mode enhancements, responsive design
+6. New features: PDF report generation, batch operations

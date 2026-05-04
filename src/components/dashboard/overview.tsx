@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
@@ -13,13 +13,15 @@ import {
   DollarSign, TrendingUp, Route, ArrowRight, ExternalLink,
   PackageCheck, Sailboat, FileUp, AlertCircle, BarChart3, PieChart as PieChartIcon,
   Inbox, RefreshCw, FileText, CheckCircle, Eye, ChevronRight,
-  Gauge, Timer, Navigation, Container, Activity
+  Gauge, Timer, Navigation, Container, Activity,
+  Upload, Bell, Download
 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useAppStore } from '@/lib/store'
+import { fetchWithRetry } from '@/lib/api-client'
 
 // ==================== TYPES ====================
 
@@ -795,74 +797,42 @@ export function Overview() {
   const [activities, setActivities] = useState<ActivityItem[]>([])
   const [activitiesLoading, setActivitiesLoading] = useState(true)
   const { setActiveTab } = useAppStore()
-  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Fetch dashboard data with retry
-  const fetchDashboard = useCallback(() => {
-    let retries = 0
-    const maxRetries = 5
+  // Fetch dashboard data with fetchWithRetry
+  const fetchDashboard = useCallback(async () => {
     setError(false)
     setLoading(true)
 
-    const fetchData = () => {
-      fetch('/api/dashboard')
-        .then((res) => {
-          if (!res.ok) throw new Error('API error')
-          return res.json()
-        })
-        .then((d) => {
-          if (d && d.kpis) {
-            // BUG FIX: Deduplicate status distribution to prevent "En tránsito" showing twice
-            if (d.chartData?.statusDistribution) {
-              d.chartData.statusDistribution = deduplicateStatusDistribution(d.chartData.statusDistribution)
-            }
-            setData(d)
-            setLoading(false)
-            setError(false)
-          } else {
-            throw new Error('Invalid data')
-          }
-        })
-        .catch(() => {
-          retries++
-          if (retries < maxRetries) {
-            retryTimerRef.current = setTimeout(fetchData, 2000)
-          } else {
-            setLoading(false)
-            setError(true)
-          }
-        })
+    const d = await fetchWithRetry<DashboardData>('/api/dashboard', undefined, 4, 1000)
+
+    if (d && d.kpis) {
+      // BUG FIX: Deduplicate status distribution to prevent "En tránsito" showing twice
+      if (d.chartData?.statusDistribution) {
+        d.chartData.statusDistribution = deduplicateStatusDistribution(d.chartData.statusDistribution)
+      }
+      setData(d)
+      setLoading(false)
+      setError(false)
+    } else {
+      setLoading(false)
+      setError(true)
     }
-    fetchData()
   }, [])
 
-  // Fetch activity data from API
-  const fetchActivities = useCallback(() => {
+  // Fetch activity data from API with fetchWithRetry
+  const fetchActivities = useCallback(async () => {
     setActivitiesLoading(true)
-    fetch('/api/activity')
-      .then((res) => {
-        if (!res.ok) throw new Error('Activity API error')
-        return res.json()
-      })
-      .then((d) => {
-        if (Array.isArray(d)) {
-          setActivities(d)
-        }
-        setActivitiesLoading(false)
-      })
-      .catch(() => {
-        setActivitiesLoading(false)
-        // Fall back to empty - don't crash
-      })
+    const d = await fetchWithRetry<ActivityItem[]>('/api/activity', undefined, 2, 1000)
+    if (Array.isArray(d)) {
+      setActivities(d)
+    }
+    setActivitiesLoading(false)
   }, [])
 
   useEffect(() => {
-    fetchDashboard()
-    fetchActivities()
-
-    return () => {
-      if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
-    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Data fetching on mount/retry requires async setState
+    void fetchDashboard()
+    void fetchActivities()
   }, [fetchDashboard, fetchActivities, retryCount])
 
   // ==================== LOADING STATE ====================
@@ -900,8 +870,11 @@ export function Overview() {
           <AlertTriangle className="w-8 h-8 text-red-500" />
         </div>
         <h3 className="text-lg font-semibold mb-2">Error al cargar datos</h3>
-        <p className="text-sm text-muted-foreground mb-4 max-w-sm">
-          No se pudieron obtener los datos del dashboard. Esto puede deberse a que el servidor está iniciándose. Por favor, intente de nuevo.
+        <p className="text-sm text-muted-foreground mb-2 max-w-sm">
+          No se pudieron obtener los datos del dashboard. Esto puede deberse a que el servidor está iniciándose o desconectado.
+        </p>
+        <p className="text-xs text-muted-foreground/70 mb-4 max-w-sm">
+          Los datos se cargarán cuando el servidor esté disponible.
         </p>
         <Button
           onClick={() => {
@@ -1051,6 +1024,39 @@ export function Overview() {
           )
         })}
       </div>
+
+      {/* ==================== QUICK ACTIONS ==================== */}
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3, duration: 0.4 }}
+      >
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: 'Nuevo Envío', icon: Ship, tab: 'shipments' as const },
+            { label: 'Subir Documento', icon: Upload, tab: 'documents' as const },
+            { label: 'Ver Alertas', icon: Bell, tab: 'dashboard' as const },
+            { label: 'Exportar Datos', icon: Download, tab: 'comparator' as const },
+          ].map((action, i) => {
+            const ActionIcon = action.icon
+            return (
+              <motion.button
+                key={action.label}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.35 + i * 0.07, duration: 0.3 }}
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => setActiveTab(action.tab)}
+                className="flex items-center gap-2.5 rounded-lg bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-400 hover:bg-teal-100 dark:hover:bg-teal-950/60 transition-colors px-4 py-3 text-sm font-medium shadow-sm"
+              >
+                <ActionIcon className="w-4 h-4 flex-shrink-0" />
+                <span className="truncate">{action.label}</span>
+              </motion.button>
+            )
+          })}
+        </div>
+      </motion.div>
 
       {/* ==================== QUICK STATS ROW ==================== */}
       <motion.div
@@ -1358,6 +1364,16 @@ export function Overview() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.7, duration: 0.4 }}
       >
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Alertas</h3>
+          <button
+            className="text-xs font-medium text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 transition-colors flex items-center gap-1"
+            onClick={() => setActiveTab('dashboard')}
+          >
+            Ver todas
+            <ChevronRight className="w-3 h-3" />
+          </button>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {alertCards.map((alert) => {
             const AlertIcon = alert.icon
@@ -1394,13 +1410,12 @@ export function Overview() {
                           className={`h-full rounded-full ${alert.progressColor}`}
                           initial={{ width: 0 }}
                           animate={{ width: `${progressPercent}%` }}
-                          transition={{ duration: 1, delay: 0.8, ease: 'easeOut' }}
+                          transition={{ duration: 1.2, delay: 0.8, ease: 'easeOut' }}
                         />
                       </div>
                     </div>
                     <button
-                      className="mt-2 text-xs font-medium transition-colors hover:opacity-80"
-                      style={{ color: 'inherit' }}
+                      className="mt-2 text-xs font-medium text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 transition-colors"
                       onClick={() => setActiveTab(alert.tab)}
                     >
                       Ver detalles →
@@ -1421,18 +1436,23 @@ export function Overview() {
       >
         <Card>
           <CardHeader className="pb-3 flex flex-row items-center justify-between">
-            <CardTitle className="text-base font-semibold">Actividad Reciente</CardTitle>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-xs text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 gap-1"
-              onClick={() => {
-                fetchActivities()
-              }}
-            >
-              <RefreshCw className="w-3 h-3" />
-              Actualizar
-            </Button>
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <Activity className="w-4 h-4 text-teal-500" />
+              Actividad Reciente
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 gap-1"
+                onClick={() => {
+                  fetchActivities()
+                }}
+              >
+                <RefreshCw className="w-3 h-3" />
+                Actualizar
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {activitiesLoading ? (
@@ -1449,9 +1469,10 @@ export function Overview() {
               </div>
             ) : activities.length > 0 ? (
               <div className="relative">
-                {activities.map((activity, idx) => {
+                {activities.slice(0, 5).map((activity, idx) => {
                   const ActivityIcon = ACTIVITY_ICON_MAP[activity.icon] || Ship
-                  const isLast = idx === activities.length - 1
+                  const displayActivities = activities.slice(0, 5)
+                  const isLast = idx === displayActivities.length - 1 && activities.length <= 5
                   const colorClass = ACTIVITY_COLOR_MAP[activity.color] || 'bg-slate-500'
                   const targetTab = ACTIVITY_TAB_MAP[activity.type]
 
@@ -1488,6 +1509,15 @@ export function Overview() {
                     </motion.div>
                   )
                 })}
+                {activities.length > 5 && (
+                  <button
+                    className="mt-2 text-xs font-medium text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 transition-colors flex items-center gap-1"
+                    onClick={() => setActiveTab('dashboard')}
+                  >
+                    Ver más
+                    <ChevronRight className="w-3 h-3" />
+                  </button>
+                )}
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">

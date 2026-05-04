@@ -106,21 +106,27 @@ export function Header() {
   const fetchNotifications = useCallback(async () => {
     try {
       const res = await fetch('/api/notifications')
+      if (!res.ok) return
       const data = await res.json()
       if (data.notifications) {
         setNotifications(data.notifications)
       }
     } catch {
-      console.error('Error fetching notifications')
+      // Silently fail - server may be temporarily down
     }
   }, [])
 
-  // Fetch notifications on mount and periodically
+  // Delay notification fetch by 5s to reduce initial API load,
+  // then poll every 60s
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- Fetching initial data on mount
-    void fetchNotifications()
+    const timer = setTimeout(() => {
+      void fetchNotifications()
+    }, 5000)
     const interval = setInterval(() => void fetchNotifications(), 60000)
-    return () => clearInterval(interval)
+    return () => {
+      clearTimeout(timer)
+      clearInterval(interval)
+    }
   }, [fetchNotifications])
 
   const markAsRead = (id: string) => {
