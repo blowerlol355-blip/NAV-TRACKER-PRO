@@ -104,7 +104,8 @@ interface CrewMember {
   assignments: Assignment[]
 }
 
-function getFlagEmoji(nationality: string): string {
+function getFlagEmoji(nationality?: string | null): string {
+  if (!nationality || typeof nationality !== 'string') return '🏳️'
   for (const [key, emoji] of Object.entries(FLAG_EMOJIS)) {
     if (nationality.toLowerCase().includes(key.toLowerCase())) return emoji
   }
@@ -155,8 +156,9 @@ export function Crew() {
   }, [])
 
   const nationalities = useMemo(() => {
-    const set = new Set(crew.map(c => c.nationality))
-    return Array.from(set).sort()
+    const items = crew.map(c => c.nationality).filter(n => typeof n === 'string' && n && n.trim().length > 0) as string[]
+    const unique = Array.from(new Set(items))
+    return unique.sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }))
   }, [crew])
 
   const filteredCrew = useMemo(() => {
