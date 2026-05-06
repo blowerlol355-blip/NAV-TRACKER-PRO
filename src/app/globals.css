@@ -45,71 +45,75 @@
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* Enhanced Black & Orange Theme for NAVTARCKER */
+  --background: oklch(0.03 0 0); /* Deep black background */
+  --foreground: oklch(0.98 0 0); /* Light text on dark background */
+  --card: oklch(0.08 0 0); /* Dark card surface */
+  --card-foreground: oklch(0.98 0 0);
+  --popover: oklch(0.12 0 0); /* Slightly lighter popover */
+  --popover-foreground: oklch(0.98 0 0);
+  /* Primary Orange Accent */
+  --primary: oklch(0.58 0.20 80); /* Vibrant orange */
+  --primary-foreground: oklch(0.02 0 0); /* Black text on orange */
+  --secondary: oklch(0.15 0 0); /* Dark gray for secondary elements */
+  --secondary-foreground: oklch(0.95 0 0);
+  --muted: oklch(0.12 0 0);
+  --muted-foreground: oklch(0.65 0 0);
+  --accent: oklch(0.58 0.20 80); /* Orange accent */
+  --accent-foreground: oklch(0.02 0 0);
+  --destructive: oklch(0.577 0.245 27.325); /* Keep red for errors */
+  --border: oklch(0.2 0 0); /* Darker borders */
+  --input: oklch(0.15 0 0);
+  --ring: oklch(0.58 0.20 80); /* Orange focus ring */
+  /* Chart colors - Orange themed */
+  --chart-1: oklch(0.62 0.18 82);
+  --chart-2: oklch(0.55 0.16 75);
+  --chart-3: oklch(0.58 0.19 85);
+  --chart-4: oklch(0.6 0.15 70);
+  --chart-5: oklch(0.52 0.14 65);
+  /* Sidebar: Deep black with orange accent */
+  --sidebar: oklch(0.05 0 0);
+  --sidebar-foreground: oklch(0.95 0 0);
+  --sidebar-primary: oklch(0.58 0.20 80);
+  --sidebar-primary-foreground: oklch(0.02 0 0);
+  --sidebar-accent: oklch(0.15 0 0);
+  --sidebar-accent-foreground: oklch(0.95 0 0);
+  --sidebar-border: oklch(0.2 0 0);
+  --sidebar-ring: oklch(0.58 0.20 80);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: oklch(0.02 0 0); /* Near black */
+  --foreground: oklch(0.98 0 0); /* Light text */
+  --card: oklch(0.04 0 0); /* Very dark card */
+  --card-foreground: oklch(0.98 0 0);
+  --popover: oklch(0.06 0 0);
+  --popover-foreground: oklch(0.98 0 0);
+  --primary: oklch(0.62 0.18 80); /* Bright orange in dark mode */
+  --primary-foreground: oklch(0.02 0 0);
+  --secondary: oklch(0.1 0 0);
+  --secondary-foreground: oklch(0.98 0 0);
+  --muted: oklch(0.1 0 0);
+  --muted-foreground: oklch(0.7 0 0);
+  --accent: oklch(0.62 0.18 80);
+  --accent-foreground: oklch(0.02 0 0);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --border: oklch(0.2 0 0 / 50%);
+  --input: oklch(0.15 0 0 / 60%);
+  --ring: oklch(0.62 0.18 80);
+  --chart-1: oklch(0.62 0.18 82);
+  --chart-2: oklch(0.55 0.16 78);
+  --chart-3: oklch(0.58 0.19 85);
+  --chart-4: oklch(0.6 0.15 72);
+  --chart-5: oklch(0.52 0.14 68);
+  --sidebar: oklch(0.04 0 0);
+  --sidebar-foreground: oklch(0.98 0 0);
+  --sidebar-primary: oklch(0.62 0.18 80);
+  --sidebar-primary-foreground: oklch(0.02 0 0);
+  --sidebar-accent: oklch(0.1 0 0);
+  --sidebar-accent-foreground: oklch(0.98 0 0);
+  --sidebar-border: oklch(0.2 0 0 / 50%);
+  --sidebar-ring: oklch(0.62 0.18 80);
 }
 
 @layer base {
@@ -128,24 +132,28 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: oklch(0.05 0 0);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: oklch(0.7 0 0 / 30%);
+  background: oklch(0.58 0.18 80 / 60%); /* warm orange thumb */
   border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: oklch(0.5 0 0 / 50%);
+  background: oklch(0.62 0.19 82 / 80%);
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: oklch(0.03 0 0);
 }
 
 .dark ::-webkit-scrollbar-thumb {
-  background: oklch(0.4 0 0 / 40%);
+  background: oklch(0.6 0.18 80 / 50%);
 }
 
 .dark ::-webkit-scrollbar-thumb:hover {
-  background: oklch(0.5 0 0 / 60%);
+  background: oklch(0.62 0.19 82 / 70%);
 }
 
 /* Smooth scrolling */
@@ -155,7 +163,8 @@ html {
 
 /* Custom selection color */
 ::selection {
-  background: oklch(0.7 0.15 170 / 30%);
+  background: oklch(0.58 0.18 80 / 40%);
+  color: oklch(0.98 0 0);
 }
 
 /* Wave animation for vessel cards */
@@ -185,14 +194,14 @@ html {
 }
 
 .animate-shimmer {
-  background: linear-gradient(90deg, transparent 0%, oklch(0.7 0.02 170 / 8%) 50%, transparent 100%);
+  background: linear-gradient(90deg, transparent 0%, oklch(0.58 0.02 80 / 8%) 50%, transparent 100%);
   background-size: 200% 100%;
   animation: shimmer 2s ease-in-out infinite;
 }
 
 /* Gradient text effect for headings */
 .gradient-text {
-  background: linear-gradient(135deg, #14b8a6, #0ea5e9);
+  background: linear-gradient(135deg, #ff7a00, #ff4500, #ff8a00);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -200,14 +209,14 @@ html {
 
 /* Glassmorphism card effect */
 .glass-card {
-  background: oklch(1 0 0 / 70%);
+  background: oklch(0.1 0 0 / 70%);
   backdrop-filter: blur(12px);
-  border: 1px solid oklch(1 0 0 / 20%);
+  border: 1px solid oklch(0.8 0.15 80 / 20%);
 }
 
 .dark .glass-card {
-  background: oklch(0.2 0 0 / 60%);
-  border: 1px solid oklch(1 0 0 / 8%);
+  background: oklch(0.06 0 0 / 60%);
+  border: 1px solid oklch(0.58 0.18 80 / 15%);
 }
 
 /* Animated gradient border */
@@ -231,12 +240,12 @@ html {
 }
 
 /* Subtle glow effect for active elements */
-.glow-teal {
-  box-shadow: 0 0 15px oklch(0.7 0.15 170 / 15%), 0 0 30px oklch(0.7 0.15 170 / 5%);
+.glow-orange {
+  box-shadow: 0 0 15px oklch(0.58 0.18 80 / 25%), 0 0 30px oklch(0.58 0.18 80 / 10%);
 }
 
-.dark .glow-teal {
-  box-shadow: 0 0 15px oklch(0.7 0.15 170 / 25%), 0 0 30px oklch(0.7 0.15 170 / 10%);
+.dark .glow-orange {
+  box-shadow: 0 0 20px oklch(0.6 0.18 80 / 40%), 0 0 40px oklch(0.6 0.18 80 / 15%);
 }
 
 /* Smooth transition for dark mode */
@@ -246,7 +255,7 @@ html.dark {
 
 /* Enhanced focus ring */
 :focus-visible {
-  outline: 2px solid oklch(0.7 0.15 170 / 50%);
+  outline: 2px solid oklch(0.58 0.18 80 / 60%);
   outline-offset: 2px;
 }
 
@@ -256,13 +265,13 @@ html.dark {
 }
 
 .table-row-hover:hover {
-  background: oklch(0.95 0.01 170);
-  box-shadow: inset 3px 0 0 oklch(0.7 0.15 170);
+  background: oklch(0.15 0 0);
+  box-shadow: inset 3px 0 0 oklch(0.58 0.18 80);
 }
 
 .dark .table-row-hover:hover {
-  background: oklch(0.22 0.01 170);
-  box-shadow: inset 3px 0 0 oklch(0.7 0.15 170 / 60%);
+  background: oklch(0.12 0 0);
+  box-shadow: inset 3px 0 0 oklch(0.58 0.18 80 / 70%);
 }
 
 /* Maritime themed badge pulse */
@@ -282,11 +291,11 @@ html.dark {
 
 .card-lift:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 25px oklch(0.5 0 0 / 10%);
+  box-shadow: 0 8px 25px oklch(0 0 0 / 30%);
 }
 
 .dark .card-lift:hover {
-  box-shadow: 0 8px 25px oklch(0 0 0 / 30%);
+  box-shadow: 0 8px 25px oklch(0 0 0 / 50%);
 }
 
 /* Staggered animation delay utility */

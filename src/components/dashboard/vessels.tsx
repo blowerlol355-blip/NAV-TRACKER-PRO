@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -21,9 +21,11 @@ import {
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { exportToCSV, printTable } from '@/lib/export-utils'
+import RouteMapVisualization from './route-map'
+import PortsMap from './ports-map'
 
 const VESSEL_STATUS_COLORS: Record<string, string> = {
-  'En tránsito': 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400',
+  'En tránsito': 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
   'En puerto': 'bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-400',
   'Cargando': 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
   'Descargando': 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
@@ -32,7 +34,7 @@ const VESSEL_STATUS_COLORS: Record<string, string> = {
 }
 
 const VESSEL_STATUS_ACCENT: Record<string, string> = {
-  'En tránsito': 'bg-teal-500',
+  'En tránsito': 'bg-orange-500',
   'En puerto': 'bg-sky-500',
   'Cargando': 'bg-amber-500',
   'Descargando': 'bg-orange-500',
@@ -41,7 +43,7 @@ const VESSEL_STATUS_ACCENT: Record<string, string> = {
 }
 
 const VESSEL_STATUS_BORDER: Record<string, string> = {
-  'En tránsito': 'border-l-teal-500',
+  'En tránsito': 'border-l-orange-500',
   'En puerto': 'border-l-sky-500',
   'Cargando': 'border-l-amber-500',
   'Descargando': 'border-l-orange-500',
@@ -137,20 +139,23 @@ function getCapacityUtilization(vessel: Vessel): number {
 function getUtilizationColor(util: number): string {
   if (util > 80) return 'bg-red-500'
   if (util > 60) return 'bg-amber-500'
-  return 'bg-teal-500'
+  return 'bg-orange-500'
 }
 
 function getUtilizationTextColor(util: number): string {
   if (util > 80) return 'text-red-600 dark:text-red-400'
   if (util > 60) return 'text-amber-600 dark:text-amber-400'
-  return 'text-teal-600 dark:text-teal-400'
+  return 'text-orange-600 dark:text-orange-400'
 }
 
 export function Vessels() {
   const [vessels, setVessels] = useState<Vessel[]>([])
   const [loading, setLoading] = useState(true)
+  const [shipments, setShipments] = useState<Shipment[]>([])
   const [showAdd, setShowAdd] = useState(false)
   const [selectedVessel, setSelectedVessel] = useState<Vessel | null>(null)
+  const attachmentsRef = useRef<HTMLInputElement | null>(null)
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [vesselShipments, setVesselShipments] = useState<Shipment[]>([])
   const [loadingShipments, setLoadingShipments] = useState(false)
   const [search, setSearch] = useState('')
@@ -164,6 +169,13 @@ export function Vessels() {
       .then((r) => r.json())
       .then((d) => { setVessels(d); setLoading(false) })
       .catch(() => setLoading(false))
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/shipments?pageSize=200')
+      .then((r) => r.json())
+      .then((d) => { setShipments(d.shipments || []) })
+      .catch(() => setShipments([]))
   }, [])
 
   const handleOpenDetail = async (vessel: Vessel) => {
@@ -185,6 +197,16 @@ export function Vessels() {
   const handleAdd = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const form = new FormData(e.currentTarget)
+    const fileToBase64 = (file: File) => new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const result = reader.result as string
+        const parts = result.split(',')
+        resolve(parts[1] || '')
+      }
+      reader.onerror = (err) => reject(err)
+      reader.readAsDataURL(file)
+    })
     const body = {
       name: form.get('name') as string,
       imo: form.get('imo') as string,
@@ -196,6 +218,18 @@ export function Vessels() {
       owner: form.get('owner') as string || null,
       status: 'En puerto',
       currentLocation: 'Puerto de origen',
+    }
+    const inputEl = (e.currentTarget.querySelector('input[name="attachments"]') as HTMLInputElement | null)
+    const files = inputEl?.files
+    if (files && files.length > 0) {
+      const arr = Array.from(files)
+      const attachments = await Promise.all(arr.map(async (file) => ({
+        filename: file.name,
+        contentBase64: await fileToBase64(file),
+        name: file.name,
+        type: file.type || 'application/octet-stream',
+      })))
+      ;(body as any).attachments = attachments
     }
     await fetch('/api/vessels', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     setShowAdd(false)
@@ -288,19 +322,19 @@ export function Vessels() {
       {/* Enhanced Statistics Header */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0 }}>
-          <Card className="border-l-4 border-l-teal-500 hover:shadow-md transition-shadow">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground font-medium">Total Embarcaciones</p>
-                  <p className="text-2xl font-bold mt-1">{totalVessels}</p>
-                </div>
-                <div className="w-10 h-10 rounded-xl bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center">
-                  <Ship className="w-5 h-5 text-teal-600 dark:text-teal-400" />
-                </div>
+        <Card className="border-l-4 border-l-orange-500 hover:shadow-md transition-shadow">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground font-medium">Total Embarcaciones</p>
+                <p className="text-2xl font-bold mt-1">{totalVessels}</p>
               </div>
-            </CardContent>
-          </Card>
+              <div className="w-10 h-10 rounded-xl bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+                <Ship className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
@@ -371,6 +405,14 @@ export function Vessels() {
         </motion.div>
       </div>
 
+      {/* Map overview for vessels (moved here from dashboard) */}
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <RouteMapVisualization shipments={shipments} />
+          <PortsMap />
+        </div>
+      </motion.div>
+
       {/* Filter Bar */}
       <Card>
         <CardContent className="p-4">
@@ -412,12 +454,12 @@ export function Vessels() {
             <div className="flex items-center gap-1 ml-auto">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
-                    variant={viewMode === 'cards' ? 'default' : 'outline'}
-                    size="sm"
-                    className={`h-9 w-9 p-0 ${viewMode === 'cards' ? 'bg-teal-600 hover:bg-teal-700' : ''}`}
-                    onClick={() => setViewMode('cards')}
-                  >
+                   <Button
+                     variant={viewMode === 'cards' ? 'default' : 'outline'}
+                     size="sm"
+                     className={`h-9 w-9 p-0 ${viewMode === 'cards' ? 'bg-orange-600 hover:bg-orange-700' : ''}`}
+                     onClick={() => setViewMode('cards')}
+                   >
                     <LayoutGrid className="w-4 h-4" />
                   </Button>
                 </TooltipTrigger>
@@ -425,12 +467,12 @@ export function Vessels() {
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
-                    variant={viewMode === 'table' ? 'default' : 'outline'}
-                    size="sm"
-                    className={`h-9 w-9 p-0 ${viewMode === 'table' ? 'bg-teal-600 hover:bg-teal-700' : ''}`}
-                    onClick={() => setViewMode('table')}
-                  >
+                   <Button
+                     variant={viewMode === 'table' ? 'default' : 'outline'}
+                     size="sm"
+                     className={`h-9 w-9 p-0 ${viewMode === 'table' ? 'bg-orange-600 hover:bg-orange-700' : ''}`}
+                     onClick={() => setViewMode('table')}
+                   >
                     <List className="w-4 h-4" />
                   </Button>
                 </TooltipTrigger>
@@ -447,9 +489,9 @@ export function Vessels() {
               <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handlePrint}>
                 <Printer className="w-3.5 h-3.5 mr-1" /> Imprimir
               </Button>
-              <Button onClick={() => setShowAdd(true)} className="h-8 text-xs bg-teal-600 hover:bg-teal-700">
-                <Plus className="w-3.5 h-3.5 mr-1" /> Nueva Embarcación
-              </Button>
+               <Button onClick={() => setShowAdd(true)} className="h-8 text-xs bg-orange-600 hover:bg-orange-700">
+                 <Plus className="w-3.5 h-3.5 mr-1" /> Nueva Embarcación
+               </Button>
             </div>
           </div>
         </CardContent>
@@ -466,18 +508,18 @@ export function Vessels() {
 
               return (
                 <motion.div key={v.id} custom={i} variants={cardVariants} initial="hidden" animate="visible" exit={{ opacity: 0, scale: 0.95 }}>
-                  <Card
-                    className="hover:shadow-lg hover:border-teal-300 dark:hover:border-teal-700 transition-all duration-200 cursor-pointer relative overflow-hidden group"
-                    onClick={() => handleOpenDetail(v)}
-                  >
+                    <Card
+                      className="hover:shadow-lg hover:border-orange-300 dark:hover:border-orange-700 transition-all duration-200 cursor-pointer relative overflow-hidden group"
+                      onClick={() => handleOpenDetail(v)}
+                    >
                     {/* Gradient accent on left side */}
                     <div className={`absolute left-0 top-0 bottom-0 w-[3px] ${accentColor}`} />
 
                     <CardContent className="p-4 space-y-3 flex flex-col h-full">
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-lg bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center">
-                            <Ship className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                          <div className="w-8 h-8 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+                            <Ship className="w-4 h-4 text-orange-600 dark:text-orange-400" />
                           </div>
                           <div>
                             <p className="font-semibold text-sm leading-tight flex items-center gap-1">
@@ -489,8 +531,8 @@ export function Vessels() {
                         <div className="flex items-center gap-1.5">
                           {isTransit && (
                             <span className="relative flex h-2 w-2">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75" />
-                              <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-500" />
+                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75" />
+                             <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500" />
                             </span>
                           )}
                           <Badge variant="secondary" className={`text-[10px] ${VESSEL_STATUS_COLORS[v.status] || ''}`}>
@@ -608,7 +650,7 @@ export function Vessels() {
                           onClick={() => handleOpenDetail(v)}
                         >
                           <TableCell className="text-sm font-semibold flex items-center gap-1.5">
-                            <Ship className="w-4 h-4 text-teal-500" />
+                            <Ship className="w-4 h-4 text-orange-500" />
                             {getFlagEmoji(v.flag)} {v.name}
                           </TableCell>
                           <TableCell className="text-sm font-mono">{v.imo}</TableCell>
@@ -667,12 +709,12 @@ export function Vessels() {
 
               <div className="space-y-4">
                 {/* Maritime themed card */}
-                <div className="relative rounded-xl overflow-hidden bg-gradient-to-br from-teal-50 via-sky-50 to-cyan-50 dark:from-teal-950/30 dark:via-sky-950/30 dark:to-cyan-950/30 border p-4">
+                 <div className="relative rounded-xl overflow-hidden bg-gradient-to-br from-orange-50 via-amber-50 to-red-50 dark:from-orange-950/30 dark:via-amber-950/30 dark:to-red-950/30 border p-4">
                   {/* Wave pattern decoration */}
                   <div className="absolute bottom-0 left-0 right-0 h-8 overflow-hidden opacity-10">
-                    <svg viewBox="0 0 400 20" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-                      <path d="M0 10 Q50 0 100 10 Q150 20 200 10 Q250 0 300 10 Q350 20 400 10" fill="none" stroke="#0d9488" strokeWidth="2" />
-                    </svg>
+                     <svg viewBox="0 0 400 20" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+                       <path d="M0 10 Q50 0 100 10 Q150 20 200 10 Q250 0 300 10 Q350 20 400 10" fill="none" stroke="#ea580c" strokeWidth="2" />
+                     </svg>
                   </div>
 
                   {/* Status & Basic Info */}
@@ -741,9 +783,9 @@ export function Vessels() {
 
                 {/* Related Shipments */}
                 <div>
-                  <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
-                    <Package className="w-4 h-4 text-teal-500" /> Envíos activos ({vesselShipments.length})
-                  </h4>
+                   <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                     <Package className="w-4 h-4 text-orange-500" /> Envíos activos ({vesselShipments.length})
+                   </h4>
                   {loadingShipments ? (
                     <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
                   ) : vesselShipments.length === 0 ? (
@@ -753,7 +795,7 @@ export function Vessels() {
                       {vesselShipments.map((s) => (
                         <div key={s.id} className="flex items-center justify-between p-2 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors">
                           <div className="flex items-center gap-2">
-                            <span className="text-xs font-mono font-semibold text-teal-600 dark:text-teal-400">{s.reference}</span>
+                             <span className="text-xs font-mono font-semibold text-orange-600 dark:text-orange-400">{s.reference}</span>
                             <span className="text-xs text-muted-foreground">{s.cargoType}</span>
                           </div>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -772,34 +814,34 @@ export function Vessels() {
 
                 {/* Historial de posición (mock) */}
                 <div>
-                  <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-teal-500" /> Historial de posición
-                  </h4>
-                  <div className="space-y-2">
-                    {[
-                      { date: '2025-03-04 08:00', location: selectedVessel.currentLocation || 'Puerto desconocido', event: 'Posición actual' },
-                      { date: '2025-03-03 14:30', location: 'Canal de Panamá', event: 'En tránsito' },
-                      { date: '2025-03-02 09:15', location: 'Puerto de Cartagena', event: 'Zarpe' },
-                      { date: '2025-03-01 16:00', location: 'Puerto de Cartagena', event: 'Descarga completada' },
-                      { date: '2025-02-28 07:00', location: 'Puerto de Cartagena', event: 'Llegada' },
-                    ].map((entry, idx) => (
-                      <div key={idx} className="flex items-start gap-3 text-xs">
-                        <div className="flex flex-col items-center">
-                          <div className={`w-2.5 h-2.5 rounded-full ${idx === 0 ? 'bg-teal-500' : 'bg-muted-foreground/30'}`} />
-                          {idx < 4 && <div className="w-px h-6 bg-muted-foreground/20" />}
-                        </div>
-                        <div className="flex-1 pb-1">
-                          <div className="flex items-center justify-between">
-                            <span className="font-medium">{entry.location}</span>
-                            <Badge variant="outline" className="text-[9px] h-4">{entry.event}</Badge>
+                   <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                     <MapPin className="w-4 h-4 text-orange-500" /> Historial de posición
+                   </h4>
+                    <div className="space-y-2">
+                      {[
+                        { date: '2025-03-04 08:00', location: selectedVessel.currentLocation || 'Puerto desconocido', event: 'Posición actual' },
+                        { date: '2025-03-03 14:30', location: 'Canal de Panamá', event: 'En tránsito' },
+                        { date: '2025-03-02 09:15', location: 'Puerto de Cartagena', event: 'Zarpe' },
+                        { date: '2025-03-01 16:00', location: 'Puerto de Cartagena', event: 'Descarga completada' },
+                        { date: '2025-02-28 07:00', location: 'Puerto de Cartagena', event: 'Llegada' },
+                      ].map((entry, idx) => (
+                        <div key={idx} className="flex items-start gap-3 text-xs">
+                          <div className="flex flex-col items-center">
+                             <div className={`w-2.5 h-2.5 rounded-full ${idx === 0 ? 'bg-orange-500' : 'bg-muted-foreground/30'}`} />
+                            {idx < 4 && <div className="w-px h-6 bg-muted-foreground/20" />}
                           </div>
-                          <span className="text-muted-foreground flex items-center gap-1">
-                            <Clock className="w-3 h-3" /> {entry.date}
-                          </span>
+                          <div className="flex-1 pb-1">
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium">{entry.location}</span>
+                              <Badge variant="outline" className="text-[9px] h-4">{entry.event}</Badge>
+                            </div>
+                            <span className="text-muted-foreground flex items-center gap-1">
+                              <Clock className="w-3 h-3" /> {entry.date}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
                 </div>
               </div>
             </>
@@ -862,9 +904,19 @@ export function Vessels() {
                 <Input name="owner" placeholder="Compañía naviera" />
               </div>
             </div>
+            <div className="space-y-2">
+              <input ref={attachmentsRef} type="file" name="attachments" multiple className="hidden" onChange={(e) => {
+                const files = e.target.files ? Array.from(e.target.files) : []
+                setSelectedFiles(files)
+              }} />
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="outline" onClick={() => attachmentsRef.current?.click()}>Adjuntar documentos</Button>
+                {selectedFiles.length > 0 && <span className="text-sm text-muted-foreground">{selectedFiles.length} archivos seleccionados</span>}
+              </div>
+            </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setShowAdd(false)}>Cancelar</Button>
-              <Button type="submit" className="bg-teal-600 hover:bg-teal-700">Registrar</Button>
+               <Button type="submit" className="bg-orange-600 hover:bg-orange-700">Registrar</Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -878,13 +930,13 @@ export function Vessels() {
           left: -50%;
           width: 200%;
           height: 100%;
-          background: repeating-linear-gradient(
-            90deg,
-            transparent,
-            transparent 20px,
-            rgba(20, 184, 166, 0.3) 20px,
-            rgba(20, 184, 166, 0.3) 22px
-          );
+           background: repeating-linear-gradient(
+             90deg,
+             transparent,
+             transparent 20px,
+             rgba(249, 115, 22, 0.3) 20px,
+             rgba(249, 115, 22, 0.3) 22px
+           );
           animation: wave-scroll 3s linear infinite;
         }
         @keyframes wave-scroll {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -255,6 +255,8 @@ export function Shipments() {
   const [showFullWorkflow, setShowFullWorkflow] = useState(false)
   const [addCargoType, setAddCargoType] = useState('Contenedorizado')
   const [expandedDocChecklist, setExpandedDocChecklist] = useState<string | null>(null)
+  const attachmentsRef = useRef<HTMLInputElement | null>(null)
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
 
   const fetchShipments = useCallback(async () => {
     setLoading(true)
@@ -294,6 +296,17 @@ export function Shipments() {
   const handleAdd = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const form = new FormData(e.currentTarget)
+    // Helper: convert File -> base64 (without data: prefix)
+    const fileToBase64 = (file: File) => new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const result = reader.result as string
+        const parts = result.split(',')
+        resolve(parts[1] || '')
+      }
+      reader.onerror = (err) => reject(err)
+      reader.readAsDataURL(file)
+    })
     const body = {
       reference: `SHP-2026-${String(Date.now()).slice(-3)}`,
       blNumber: form.get('blNumber') as string || 'PENDIENTE',
@@ -314,6 +327,19 @@ export function Shipments() {
       regulatoryCategory: (form.get('regulatoryCategory') as string) === 'none' ? null : (form.get('regulatoryCategory') as string) || null,
       incoterm: form.get('incoterm') as string || null,
       packagingType: form.get('packagingType') as string || null,
+    }
+    // Collect attachments from file input (if any)
+    const inputEl = (e.currentTarget.querySelector('input[name="attachments"]') as HTMLInputElement | null)
+    const files = inputEl?.files
+    if (files && files.length > 0) {
+      const arr = Array.from(files)
+      const attachments = await Promise.all(arr.map(async (file) => ({
+        filename: file.name,
+        contentBase64: await fileToBase64(file),
+        name: file.name,
+        type: file.type || 'application/octet-stream',
+      })))
+      ;(body as any).attachments = attachments
     }
     await fetch('/api/shipments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     setShowAdd(false)
@@ -365,6 +391,21 @@ export function Shipments() {
     }
     const prevStatus = STATUS_STEPS[currentIdx - 1]
     await handleStatusUpdate(prevStatus)
+  }
+
+  const downloadAllDocuments = () => {
+    if (!selectedShipment) return
+    selectedShipment.documents.forEach((d) => {
+      const url = (d as any).fileUrl || (d as any).documentNumber || null
+      if (!url) return
+      const a = document.createElement('a')
+      a.href = url
+      a.download = d.name || ''
+      a.target = '_blank'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+    })
   }
 
   const getStatusStepIndex = (status: string) => {
@@ -1216,6 +1257,12 @@ export function Shipments() {
                       </span>
                     </AccordionTrigger>
                     <AccordionContent>
+                      <div className="flex justify-end pb-2">
+                        <Button size="sm" variant="outline" onClick={downloadAllDocuments} className="text-xs">
+                          <Download className="w-3 h-3 mr-1" />
+                          Descargar todos
+                        </Button>
+                      </div>
                       {selectedShipment.permits.length > 0 ? (
                         <div className="space-y-1.5">
                           {selectedShipment.permits.map((p) => (
@@ -1292,7 +1339,18 @@ export function Shipments() {
                                   <span className="text-[9px] text-muted-foreground bg-muted/50 px-1 rounded">{d.documentSubtype}</span>
                                 )}
                               </span>
-                              <Badge variant="secondary" className="text-[10px]">{d.status}</Badge>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="secondary" className="text-[10px]">{d.status}</Badge>
+                                {((d as any).fileUrl || (d as any).documentNumber) && (
+                                  <Button size="sm" variant="ghost" onClick={() => {
+                                    const url = (d as any).fileUrl || (d as any).documentNumber
+                                    if (!url) return
+                                    window.open(url, '_blank')
+                                  }} className="text-xs">
+                                    <Eye className="w-3 h-3" />
+                                  </Button>
+                                )}
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -1481,7 +1539,41 @@ export function Shipments() {
               </div>
             </div>
 
-            <DialogFooter className="pt-2">
+            {/* Document attachments */}
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Documentos adjuntos</p>
+              <div className="flex items-center gap-3">
+                <input
+                  ref={(el) => (attachmentsRef.current = el)}
+                  type="file"
+                  name="attachments"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    const files = e.target.files ? Array.from(e.target.files) : []
+                    setSelectedFiles(files)
+                  }}
+                />
+                <Button
+                  type="button"
+                  onClick={() => attachmentsRef.current?.click()}
+                  className="h-9 bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
+                >
+                  <FilePlus2 className="w-4 h-4" />
+                  Adjuntar documentos
+                </Button>
+                <span className="text-xs text-muted-foreground">{selectedFiles.length} archivo(s) seleccionado(s)</span>
+              </div>
+              {selectedFiles.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {selectedFiles.map((f, i) => (
+                    <div key={i} className="text-xs text-muted-foreground truncate max-w-full">{f.name}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+                <DialogFooter className="pt-2">
               <Button type="button" variant="outline" onClick={() => setShowAdd(false)} className="h-9">Cancelar</Button>
               <Button type="submit" className="bg-teal-600 hover:bg-teal-700 h-9 gap-1.5">
                 <Plus className="w-4 h-4" />

@@ -89,8 +89,8 @@ model Vessel {
   owner           String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-
   shipments Shipment[]
+  documents Document[]
 }
 
 model Permit {
@@ -106,6 +106,7 @@ model Permit {
   notes       String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  documents   Document[]
 }
 
 model Container {
@@ -120,27 +121,39 @@ model Container {
   dimensions String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+  documents  Document[]
 }
 
 model Document {
-  id         String   @id @default(cuid())
-  name       String
-  type       String
-  shipmentId String
-  shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
-  uploadDate DateTime @default(now())
-  expiryDate DateTime?
-  status     String   @default("Vigente")
-  fileSize   String?
-  category   String?
+  id               String   @id @default(cuid())
+  name             String
+  type             String
+  shipmentId       String?
+  shipment         Shipment? @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  permitId         String?
+  permit           Permit?   @relation(fields: [permitId], references: [id])
+  containerId      String?
+  container        Container? @relation(fields: [containerId], references: [id])
+  vesselId         String?
+  vessel           Vessel?    @relation(fields: [vesselId], references: [id])
+  portId           String?
+  port             Port?      @relation(fields: [portId], references: [id])
+  crewId           String?
+  crew             Crew?      @relation(fields: [crewId], references: [id])
+  fileUrl          String?
+  uploadDate       DateTime @default(now())
+  expiryDate       DateTime?
+  status           String   @default("Vigente")
+  fileSize         String?
+  category         String?
   // Expanded document fields
-  documentSubtype String?
+  documentSubtype  String?
   issuingAuthority String?
-  documentNumber String?
-  isVerified  Boolean  @default(false)
-  blockchainHash String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  documentNumber   String?
+  isVerified       Boolean  @default(false)
+  blockchainHash   String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
 
 model Port {
@@ -151,6 +164,7 @@ model Port {
   timezone  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  documents Document[]
 }
 
 // ===== NEW MODELS =====
@@ -175,6 +189,7 @@ model Crew {
   updatedAt         DateTime @updatedAt
 
   assignments CrewAssignment[]
+  documents   Document[]
 }
 
 model CrewAssignment {

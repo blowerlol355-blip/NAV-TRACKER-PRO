@@ -70,10 +70,10 @@ const TYPE_CONFIG: Record<string, { icon: React.ElementType; color: string; bord
   },
   info: {
     icon: Info,
-    color: 'text-sky-700 dark:text-sky-400',
-    borderColor: 'border-l-sky-500',
-    bgColor: 'bg-sky-50 dark:bg-sky-950/20',
-    iconColor: 'text-sky-500',
+    color: 'text-accent dark:text-accent-foreground',
+    borderColor: 'border-l-accent',
+    bgColor: 'bg-accent/5 dark:bg-accent/20',
+    iconColor: 'text-accent',
     label: 'Informativas',
   },
   success: {

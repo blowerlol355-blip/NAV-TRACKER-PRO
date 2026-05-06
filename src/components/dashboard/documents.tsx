@@ -198,6 +198,7 @@ export function Documents() {
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
   const [copiedHash, setCopiedHash] = useState(false)
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -255,7 +256,41 @@ export function Documents() {
 
   const openDocDetail = (doc: Document) => {
     setSelectedDoc(doc)
+    setIsEditing(false)
     setDialogOpen(true)
+  }
+
+  const saveDocument = async (updates: Partial<Document> & { generateDocumentNumber?: boolean }) => {
+    if (!selectedDoc) return
+    try {
+      const res = await fetch(`/api/documents/${selectedDoc.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      })
+      if (!res.ok) throw new Error('Save failed')
+      const updated = await res.json()
+      // update local state
+      setDocuments((prev) => prev.map(d => d.id === updated.id ? updated : d))
+      setSelectedDoc(updated)
+      setIsEditing(false)
+    } catch (e) {
+      console.error('Save error', e)
+      alert('Error al guardar el documento')
+    }
+  }
+
+  const deleteDocument = async (id: string) => {
+    if (!confirm('¿Eliminar este documento? Esta acción no se puede deshacer.')) return
+    try {
+      const res = await fetch(`/api/documents/${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Delete failed')
+      setDocuments((prev) => prev.filter(d => d.id !== id))
+      setDialogOpen(false)
+    } catch (e) {
+      console.error('Delete error', e)
+      alert('Error al eliminar el documento')
+    }
   }
 
   const handleFileUpload = async (file: File) => {
@@ -749,7 +784,11 @@ export function Documents() {
                       <TypeIcon className="w-5 h-5" />
                     </div>
                     <div className="min-w-0">
-                      <div className="truncate">{selectedDoc.name}</div>
+                      {isEditing ? (
+                        <Input id="doc-name" defaultValue={selectedDoc.name} className="w-full" />
+                      ) : (
+                        <div className="truncate">{selectedDoc.name}</div>
+                      )}
                       <DialogDescription className="flex items-center gap-2 mt-0.5">
                         <span>{selectedDoc.type}</span>
                         {selectedDoc.documentSubtype && (
@@ -855,11 +894,13 @@ export function Documents() {
                       <CardContent className="p-3">
                         <div className="flex items-center gap-2">
                           <Building className="w-4 h-4 text-amber-500" />
-                          <div>
+                          <div className="flex-1">
                             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Autoridad Emisora</p>
-                            <p className="text-sm font-medium truncate" title={selectedDoc.issuingAuthority || undefined}>
-                              {selectedDoc.issuingAuthority || 'No especificada'}
-                            </p>
+                            {isEditing ? (
+                              <Input defaultValue={selectedDoc.issuingAuthority || ''} onBlur={(e) => saveDocument({ issuingAuthority: e.target.value })} />
+                            ) : (
+                              <p className="text-sm font-medium truncate" title={selectedDoc.issuingAuthority || undefined}>{selectedDoc.issuingAuthority || 'No especificada'}</p>
+                            )}
                           </div>
                         </div>
                       </CardContent>
@@ -870,9 +911,16 @@ export function Documents() {
                       <CardContent className="p-3">
                         <div className="flex items-center gap-2">
                           <Hash className="w-4 h-4 text-sky-500" />
-                          <div>
+                          <div className="flex-1">
                             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Número de Documento</p>
-                            <p className="text-sm font-mono font-medium">{selectedDoc.documentNumber || 'No asignado'}</p>
+                            {isEditing ? (
+                              <div className="flex items-center gap-2">
+                                <Input defaultValue={selectedDoc.documentNumber || ''} onBlur={(e) => saveDocument({ documentNumber: e.target.value })} className="flex-1" />
+                                <Button size="sm" onClick={() => saveDocument({ generateDocumentNumber: true })}>Generar</Button>
+                              </div>
+                            ) : (
+                              <p className="text-sm font-mono font-medium">{selectedDoc.documentNumber || 'No asignado'}</p>
+                            )}
                           </div>
                         </div>
                       </CardContent>
@@ -928,6 +976,23 @@ export function Documents() {
                         )}
                       </div>
                     </div>
+                  </div>
+                  {/* Edit Actions */}
+                  <div className="flex items-center justify-end gap-2">
+                    {isEditing ? (
+                      <>
+                        <Button size="sm" className="bg-emerald-600 text-white" onClick={() => saveDocument({
+                          name: (document.querySelector('#doc-name') as HTMLInputElement)?.value || selectedDoc.name,
+                          // other fields saved onBlur individually; here force refresh
+                        })}>Guardar</Button>
+                        <Button size="sm" variant="ghost" onClick={() => { setIsEditing(false); /* reload original if needed */ }} >Cancelar</Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button size="sm" onClick={() => setIsEditing(true)}>Editar</Button>
+                        <Button size="sm" variant="destructive" onClick={() => deleteDocument(selectedDoc.id)}>Eliminar</Button>
+                      </>
+                    )}
                   </div>
 
                   {/* Blockchain Hash */}

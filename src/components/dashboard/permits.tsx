@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -150,6 +150,8 @@ export function Permits() {
   const [shipments, setShipments] = useState<{ id: string; reference: string }[]>([])
   const [adding, setAdding] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
+  const attachmentsRef = useRef<HTMLInputElement | null>(null)
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
 
   const fetchPermits = useCallback(async () => {
     setLoading(true)
@@ -204,6 +206,16 @@ export function Permits() {
     setAdding(true)
     setAddError(null)
     const form = new FormData(e.currentTarget)
+    const fileToBase64 = (file: File) => new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const result = reader.result as string
+        const parts = result.split(',')
+        resolve(parts[1] || '')
+      }
+      reader.onerror = (err) => reject(err)
+      reader.readAsDataURL(file)
+    })
     const body = {
       type: form.get('type') as string,
       number: form.get('number') as string,
@@ -213,7 +225,19 @@ export function Permits() {
       expiryDate: form.get('expiryDate') as string || null,
       status: 'Pendiente',
     }
-
+    // Collect attachments from file input (if any)
+    const inputEl = (e.currentTarget.querySelector('input[name="attachments"]') as HTMLInputElement | null)
+    const files = inputEl?.files
+    if (files && files.length > 0) {
+      const arr = Array.from(files)
+      const attachments = await Promise.all(arr.map(async (file) => ({
+        filename: file.name,
+        contentBase64: await fileToBase64(file),
+        name: file.name,
+        type: file.type || 'application/octet-stream',
+      })))
+      ;(body as any).attachments = attachments
+    }
     try {
       const res = await fetch('/api/permits', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       const data = await res.json()
@@ -792,6 +816,16 @@ export function Permits() {
               <div className="space-y-2">
                 <Label>Fecha de Vencimiento</Label>
                 <Input name="expiryDate" type="date" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <input ref={attachmentsRef} type="file" name="attachments" multiple className="hidden" onChange={(e) => {
+                const files = e.target.files ? Array.from(e.target.files) : []
+                setSelectedFiles(files)
+              }} />
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="outline" onClick={() => attachmentsRef.current?.click()}>Adjuntar documentos</Button>
+                {selectedFiles.length > 0 && <span className="text-sm text-muted-foreground">{selectedFiles.length} archivos seleccionados</span>}
               </div>
             </div>
             <DialogFooter>

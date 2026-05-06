@@ -72,7 +72,7 @@ interface ActivityItem {
 const STATUS_COLORS: Record<string, string> = {
   'Registrado': 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
   'En documentación': 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
-  'En tránsito': 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400',
+  'En tránsito': 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
   'En puerto de destino': 'bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-400',
   'En aduana': 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
   'Entregado': 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400',
@@ -80,7 +80,7 @@ const STATUS_COLORS: Record<string, string> = {
   'Carga General': 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
   'Granel Sólido': 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
   'Granel Líquido': 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
-  'Contenedorizado': 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400',
+  'Contenedorizado': 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
   'Pendiente de despacho': 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
 }
 
@@ -117,12 +117,11 @@ const ACTIVITY_ICON_MAP: Record<string, React.ElementType> = {
 }
 
 const ACTIVITY_COLOR_MAP: Record<string, string> = {
-  'teal': 'bg-teal-500',
+  'orange': 'bg-orange-500',
   'emerald': 'bg-emerald-500',
   'red': 'bg-red-500',
-  'orange': 'bg-orange-500',
-  'sky': 'bg-sky-500',
   'amber': 'bg-amber-500',
+  'sky': 'bg-sky-500',
   'slate': 'bg-slate-500',
 }
 
@@ -221,7 +220,7 @@ function ShimmerOverlay() {
 }
 
 // ==================== Gradient Border Wrapper ====================
-function GradientBorderCard({ children, className = '', fromColor = 'from-teal-500', toColor = 'to-sky-500' }: {
+function GradientBorderCard({ children, className = '', fromColor = 'from-orange-500', toColor = 'to-sky-500' }: {
   children: React.ReactNode
   className?: string
   fromColor?: string
@@ -240,7 +239,7 @@ function GradientBorderCard({ children, className = '', fromColor = 'from-teal-5
 }
 
 // ==================== Mini Sparkline SVG ====================
-function MiniSparkline({ trend, color = 'text-teal-500' }: { trend: string; color?: string }) {
+function MiniSparkline({ trend, color = 'text-orange-500' }: { trend: string; color?: string }) {
   const isPositive = trend.startsWith('+')
   const points = isPositive
     ? '0,8 4,6 8,7 12,3 16,5 20,1 24,0'
@@ -288,7 +287,7 @@ function MaritimeBarTooltip({ active, payload, label }: { active?: boolean; payl
   return (
     <div className="bg-card/95 backdrop-blur-sm border border-border rounded-lg px-3 py-2 shadow-lg">
       <p className="text-xs font-medium text-muted-foreground mb-1">{label}</p>
-      <p className="text-sm font-bold text-teal-600 dark:text-teal-400">
+      <p className="text-sm font-bold text-orange-600 dark:text-orange-400">
         {payload[0].value} envíos
       </p>
     </div>
@@ -328,419 +327,18 @@ const PORT_COORDS: Record<string, { x: number; y: number; label: string }> = {
 }
 
 const ROUTE_STATUS_COLORS: Record<string, string> = {
-  'En tránsito': '#14b8a6',
+  'En tránsito': '#ea580c',
   'Con retraso': '#ef4444',
   'Entregado': '#22c55e',
 }
 
-const DEFAULT_ROUTE_COLOR = '#f59e0b'
+const DEFAULT_ROUTE_COLOR = '#ea580c'
 
 // ==================== Route Map Visualization Component ====================
-function RouteMapVisualization({ shipments }: { shipments: DashboardData['recentShipments'] }) {
-  const [hoveredRoute, setHoveredRoute] = useState<string | null>(null)
-  const [tooltipInfo, setTooltipInfo] = useState<{ x: number; y: number; shipment: typeof shipments[0] } | null>(null)
-  const router = useRouter()
-
-  const formatDateTime = (d: string | null | undefined) => {
-    if (!d) return '—'
-    try {
-      return new Date(d).toLocaleString()
-    } catch (e) {
-      return String(d)
-    }
-  }
-
-  const formatRelativeTime = (d: string | null | undefined) => {
-    if (!d) return '—'
-    const then = new Date(d).getTime()
-    const now = Date.now()
-    const diff = then - now
-    const abs = Math.abs(diff)
-    const weeks = Math.floor(abs / (1000 * 60 * 60 * 24 * 7))
-    const days = Math.floor((abs % (1000 * 60 * 60 * 24 * 7)) / (1000 * 60 * 60 * 24))
-    const hours = Math.floor((abs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
-    const mins = Math.floor((abs % (1000 * 60 * 60)) / (1000 * 60))
-    const parts = []
-    if (weeks) parts.push(`${weeks}w`)
-    if (days) parts.push(`${days}d`)
-    if (!weeks && hours) parts.push(`${hours}h`)
-    if (!weeks && !days && !hours) parts.push(`${mins}m`)
-    const when = diff > 0 ? `in ${parts.join(' ')}` : `${parts.join(' ')} ago`
-    return when
-  }
-
-  // Geographic coordinates for ports (approximate lat/lon) used for distance-based ETA prediction
-  const PORT_GEO: Record<string, { lat: number; lon: number }> = {
-    'GUAYAQUIL': { lat: -2.170998, lon: -79.922359 },
-    'VALENCIA': { lat: 39.4699, lon: -0.3763 },
-    'CALLAO': { lat: -12.056, lon: -77.118 },
-    'CARTAGENA': { lat: 10.391, lon: -75.4794 },
-    'MANZANILLO': { lat: 19.1411, lon: -104.315 },
-    'ROTTERDAM': { lat: 51.947, lon: 4.142 },
-  }
-
-  // Haversine formula to compute great-circle distance (km)
-  const haversineKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const toRad = (v: number) => (v * Math.PI) / 180
-    const R = 6371 // km
-    const dLat = toRad(lat2 - lat1)
-    const dLon = toRad(lon2 - lon1)
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2)
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-    return R * c
-  }
-
-  const uniqueRoutes = useMemo(() => {
-    const seen = new Set<string>()
-    return shipments.filter((s) => {
-      const key = `${s.originPort}-${s.destinationPort}`
-      if (seen.has(key)) return false
-      seen.add(key)
-      return true
-    })
-  }, [shipments])
-
-  // Calculate curved path between two points
-  const getCurvedPath = (x1: number, y1: number, x2: number, y2: number) => {
-    const midX = (x1 + x2) / 2
-    const midY = (y1 + y2) / 2
-    const dx = x2 - x1
-    const dy = y2 - y1
-    const dist = Math.sqrt(dx * dx + dy * dy)
-    const curvature = Math.min(dist * 0.3, 60)
-    const cx = midX - dy * 0.3
-    const cy = midY - curvature * 0.5
-    return `M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`
-  }
-
-  return (
-    <>
-      <style>{`
-        @keyframes shipMove {
-          0% { offset-distance: 0%; }
-          100% { offset-distance: 100%; }
-        }
-        @keyframes dashMove {
-          0% { stroke-dashoffset: 20; }
-          100% { stroke-dashoffset: 0; }
-        }
-        .route-path {
-          animation: dashMove 1.5s linear infinite;
-        }
-        .ship-icon {
-          offset-path: path(var(--route-path));
-          animation: shipMove 6s linear infinite;
-        }
-      `}</style>
-      <Card className="h-full overflow-hidden">
-        <CardHeader className="pb-2 flex flex-row items-center justify-between">
-          <div>
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <Navigation className="w-4 h-4 text-teal-500" />
-              Mapa de Rutas Marítimas
-            </CardTitle>
-            <p className="text-xs text-muted-foreground">Rutas activas de envíos</p>
-          </div>
-        </CardHeader>
-        <CardContent className="p-2 sm:p-4">
-          <div className="relative w-full" style={{ paddingBottom: '50%' }}>
-            <svg
-              viewBox="0 0 800 400"
-              className="absolute inset-0 w-full h-full"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              {/* Ocean background */}
-              <defs>
-                <radialGradient id="oceanGrad" cx="50%" cy="50%" r="70%">
-                  <stop offset="0%" stopColor="currentColor" className="text-slate-50 dark:text-slate-900" />
-                  <stop offset="100%" stopColor="currentColor" className="text-slate-100 dark:text-slate-950" />
-                </radialGradient>
-                <filter id="glow">
-                  <feGaussianBlur stdDeviation="2" result="coloredBlur" />
-                  <feMerge>
-                    <feMergeNode in="coloredBlur" />
-                    <feMergeNode in="SourceGraphic" />
-                  </feMerge>
-                </filter>
-              </defs>
-
-              {/* Ocean */}
-              <rect width="800" height="400" fill="url(#oceanGrad)" rx="8" />
-
-              {/* Simplified continents */}
-              {/* North America */}
-              <path d="M 80 80 L 130 65 L 180 70 L 230 65 L 260 90 L 270 110 L 260 130 L 240 140 L 230 170 L 210 175 L 195 170 L 180 180 L 165 185 L 155 195 L 145 190 L 130 180 L 110 185 L 95 180 L 80 170 L 70 150 L 65 130 L 70 110 Z"
-                fill="currentColor" className="text-slate-200 dark:text-slate-800" stroke="currentColor" strokeWidth="0.5" />
-              {/* Central America */}
-              <path d="M 195 185 L 210 190 L 225 195 L 240 200 L 245 210 L 240 215 L 225 220 L 215 215 L 205 210 L 195 205 L 190 195 Z"
-                fill="currentColor" className="text-slate-200 dark:text-slate-800" stroke="currentColor" strokeWidth="0.5" />
-              {/* South America */}
-              <path d="M 215 220 L 230 218 L 255 225 L 275 240 L 290 260 L 285 290 L 275 310 L 260 325 L 245 335 L 235 330 L 230 315 L 225 300 L 220 275 L 215 250 L 210 235 Z"
-                fill="currentColor" className="text-slate-200 dark:text-slate-800" stroke="currentColor" strokeWidth="0.5" />
-              {/* Europe */}
-              <path d="M 370 85 L 395 80 L 420 85 L 435 95 L 440 110 L 435 125 L 420 135 L 400 140 L 385 150 L 375 155 L 365 150 L 355 140 L 350 125 L 355 110 L 360 100 Z"
-                fill="currentColor" className="text-slate-200 dark:text-slate-800" stroke="currentColor" strokeWidth="0.5" />
-              {/* Africa */}
-              <path d="M 375 165 L 400 160 L 420 170 L 430 185 L 435 205 L 430 230 L 420 255 L 405 270 L 390 275 L 380 265 L 370 245 L 365 220 L 360 200 L 365 180 Z"
-                fill="currentColor" className="text-slate-200 dark:text-slate-800" stroke="currentColor" strokeWidth="0.5" />
-              {/* Asia */}
-              <path d="M 445 80 L 500 70 L 560 75 L 620 80 L 670 90 L 700 100 L 720 120 L 715 140 L 700 155 L 680 165 L 660 170 L 640 165 L 610 160 L 580 155 L 550 150 L 520 140 L 490 130 L 465 120 L 450 105 L 445 90 Z"
-                fill="currentColor" className="text-slate-200 dark:text-slate-800" stroke="currentColor" strokeWidth="0.5" />
-              {/* Australia */}
-              <path d="M 630 260 L 660 255 L 690 260 L 710 275 L 715 295 L 705 310 L 685 320 L 660 325 L 640 315 L 630 295 L 625 275 Z"
-                fill="currentColor" className="text-slate-200 dark:text-slate-800" stroke="currentColor" strokeWidth="0.5" />
-
-              {/* Grid lines (subtle) */}
-              {[100, 200, 300, 400, 500, 600, 700].map((x) => (
-                <line key={`vline-${x}`} x1={x} y1="0" x2={x} y2="400" stroke="currentColor" className="text-slate-200 dark:text-slate-800" strokeWidth="0.3" strokeDasharray="4 8" />
-              ))}
-              {[80, 160, 240, 320].map((y) => (
-                <line key={`hline-${y}`} x1="0" y1={y} x2="800" y2={y} stroke="currentColor" className="text-slate-200 dark:text-slate-800" strokeWidth="0.3" strokeDasharray="4 8" />
-              ))}
-
-              {/* Shipping Routes */}
-              {uniqueRoutes.map((shipment) => {
-                const origin = PORT_COORDS[shipment.originPort]
-                const dest = PORT_COORDS[shipment.destinationPort]
-                if (!origin || !dest) return null
-
-                const routeKey = `${shipment.originPort}-${shipment.destinationPort}`
-                const routeColor = ROUTE_STATUS_COLORS[shipment.status] || DEFAULT_ROUTE_COLOR
-                const isHovered = hoveredRoute === routeKey
-                const pathD = getCurvedPath(origin.x, origin.y, dest.x, dest.y)
-                // compute progress based on departureDate -> eta (0..1). fallback 0.5
-                const now = Date.now()
-                const depMs = shipment.departureDate ? new Date(shipment.departureDate).getTime() : null
-                const etaMs = shipment.eta ? new Date(shipment.eta).getTime() : null
-                let progress = 0.5
-                if (depMs && etaMs && etaMs > depMs) {
-                  progress = Math.min(1, Math.max(0, (now - depMs) / (etaMs - depMs)))
-                }
-                const shipX = origin.x + (dest.x - origin.x) * progress
-                const shipY = origin.y + (dest.y - origin.y) * progress
-
-                return (
-                  <g key={routeKey}>
-                    {/* Route path - glow effect on hover */}
-                    {isHovered && (
-                      <path
-                        d={pathD}
-                        fill="none"
-                        stroke={routeColor}
-                        strokeWidth="6"
-                        opacity="0.2"
-                        filter="url(#glow)"
-                      />
-                    )}
-                    {/* Route path - dashed animated */}
-                    <path
-                      d={pathD}
-                      fill="none"
-                      stroke={routeColor}
-                      strokeWidth={isHovered ? 2.5 : 1.8}
-                      strokeDasharray="8 4"
-                      className="route-path"
-                      opacity={isHovered ? 1 : 0.7}
-                      style={{ '--route-path': `'${pathD}'`, cursor: 'pointer' } as React.CSSProperties}
-                      onMouseEnter={() => {
-                        setHoveredRoute(routeKey)
-                        const midX = (origin.x + dest.x) / 2
-                        const midY = Math.min(origin.y, dest.y) - 20
-                        setTooltipInfo({ x: midX, y: midY, shipment })
-                      }}
-                      onMouseLeave={() => {
-                        setHoveredRoute(null)
-                        setTooltipInfo(null)
-                      }}
-                    />
-                    {/* Ship position (clickable) */}
-                    <g
-                      transform={`translate(${shipX}, ${shipY})`}
-                      onClick={() => {
-                        try {
-                          if (shipment.vesselId) router.push(`/vessels/${shipment.vesselId}`)
-                        } catch (e) {
-                          if (typeof window !== 'undefined' && shipment.vesselId) window.location.href = `/vessels/${shipment.vesselId}`
-                        }
-                      }}
-                      onDoubleClick={() => {
-                        try {
-                          if (shipment.vesselId) router.push(`/vessels/${shipment.vesselId}`)
-                        } catch (e) {
-                          if (typeof window !== 'undefined' && shipment.vesselId) window.location.href = `/vessels/${shipment.vesselId}`
-                        }
-                      }}
-                      style={{ cursor: 'pointer' }}
-                    >
-                      <circle r={isHovered ? 5 : 4} fill={routeColor} stroke="white" strokeWidth="1" />
-                      <text x={8} y={3} fontSize="8" fill="currentColor" className="text-slate-700 dark:text-slate-200">
-                        {shipment.vessel?.name || 'Vessel'} {shipment.vessel?.speed ? `${(shipment.vessel as any).speed} kt` : ''}
-                      </text>
-                    </g>
-                    {/* Origin dot */}
-                    <circle
-                      cx={origin.x} cy={origin.y} r={isHovered ? 5 : 4}
-                      fill={routeColor} stroke="white" strokeWidth="1.5"
-                      className="transition-all duration-200"
-                    />
-                    {/* Destination dot */}
-                    <circle
-                      cx={dest.x} cy={dest.y} r={isHovered ? 5 : 4}
-                      fill={routeColor} stroke="white" strokeWidth="1.5"
-                      className="transition-all duration-200"
-                    />
-                    {/* Port labels */}
-                    <text
-                      x={origin.x} y={origin.y - 8}
-                      textAnchor="middle" fontSize="8"
-                      fill="currentColor" className="text-slate-600 dark:text-slate-400"
-                      fontWeight="600"
-                    >
-                      {shipment.originPort}
-                    </text>
-                    <text
-                      x={dest.x} y={dest.y - 8}
-                      textAnchor="middle" fontSize="8"
-                      fill="currentColor" className="text-slate-600 dark:text-slate-400"
-                      fontWeight="600"
-                    >
-                      {shipment.destinationPort}
-                    </text>
-                  </g>
-                )
-              })}
-
-              {/* Tooltip on hover */}
-              {tooltipInfo && (
-                <g>
-                  <rect
-                    x={tooltipInfo.x - 80} y={tooltipInfo.y - 38}
-                    width="160" height="32" rx="6"
-                    fill="currentColor" className="text-slate-900 dark:text-slate-100"
-                    opacity="0.92"
-                  />
-                  <text
-                    x={tooltipInfo.x} y={tooltipInfo.y - 22}
-                    textAnchor="middle" fontSize="8" fill="white"
-                    fontWeight="600"
-                  >
-                    {tooltipInfo.shipment.reference}
-                  </text>
-                  <text
-                    x={tooltipInfo.x} y={tooltipInfo.y - 12}
-                    textAnchor="middle" fontSize="7" fill="white"
-                    opacity="0.85"
-                  >
-                    {tooltipInfo.shipment.originPort} → {tooltipInfo.shipment.destinationPort} • {tooltipInfo.shipment.status}
-                  </text>
-                </g>
-              )}
-            </svg>
-
-              {/* Tooltip panel for hovered route */}
-              {tooltipInfo && tooltipInfo.shipment && (
-                (() => {
-                  const s = tooltipInfo.shipment
-                  const etaText = formatDateTime(s.eta)
-                  const arrivalText = s.arrivalDate ? formatDateTime(s.arrivalDate) : '—'
-                  // compute delay relative to ETA
-                  let delayLabel = '—'
-                  if (s.eta) {
-                    const etaMs = new Date(s.eta).getTime()
-                    const now = Date.now()
-                    const diff = now - etaMs
-                    const abs = Math.abs(diff)
-                    const weeks = Math.floor(abs / (1000 * 60 * 60 * 24 * 7))
-                    const days = Math.floor((abs % (1000 * 60 * 60 * 24 * 7)) / (1000 * 60 * 60 * 24))
-                    const hours = Math.floor((abs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
-                    const mins = Math.floor((abs % (1000 * 60 * 60)) / (1000 * 60))
-                    const parts = []
-                    if (weeks) parts.push(`${weeks}w`)
-                    if (days) parts.push(`${days}d`)
-                    if (!weeks && hours) parts.push(`${hours}h`)
-                    if (!weeks && !days && !hours) parts.push(`${mins}m`)
-                    if (diff > 0) {
-                      // delayed
-                      delayLabel = `${parts.join(' ')} delayed`
-                    } else {
-                      // time to ETA
-                      delayLabel = `ETA ${parts.join(' ')}`
-                    }
-                  }
-
-                  const lines = [
-                    `${s.reference} — ${s.clientName || '—'}`,
-                    `Status: ${s.status || '—'}`,
-                    `ETA: ${etaText} (${formatRelativeTime(s.eta)})`,
-                    `Arrival: ${arrivalText}`,
-                    `Delay: ${delayLabel}`,
-                    (() => {
-                      try {
-                        const originGeo = PORT_GEO[s.originPort]
-                        const destGeo = PORT_GEO[s.destinationPort]
-                        if (!originGeo || !destGeo) return 'Predicted ETA: —'
-                        const distKm = haversineKm(originGeo.lat, originGeo.lon, destGeo.lat, destGeo.lon)
-                        // vessel speed in knots -> km/h (1 knot = 1.852 km/h)
-                        const vesselSpeedKn = s.vessel && (s.vessel as any).speed ? (s.vessel as any).speed : 12
-                        const speedKmh = vesselSpeedKn * 1.852
-                        const hours = Math.max(0.5, distKm / Math.max(0.1, speedKmh))
-                        const predictedMs = Date.now() + Math.round(hours * 3600 * 1000)
-                        const predicted = new Date(predictedMs)
-                        const predictedText = formatDateTime(predicted.toISOString())
-                        // compare with declared ETA
-                        if (s.eta) {
-                          const etaMs = new Date(s.eta).getTime()
-                          const diffH = Math.round((predictedMs - etaMs) / (1000 * 60 * 60))
-                          if (diffH > 0) return `Predicted ETA: ${predictedText} (+${diffH}h)`
-                          if (diffH < 0) return `Predicted ETA: ${predictedText} (${Math.abs(diffH)}h early)`
-                        }
-                        return `Predicted ETA: ${predictedText}`
-                      } catch (e) {
-                        return 'Predicted ETA: —'
-                      }
-                    })(),
-                  ]
-
-                  return (
-                    <g key="route-tooltip" pointerEvents="none">
-                      <foreignObject x={tooltipInfo.x - 120} y={Math.max(8, tooltipInfo.y - 70)} width={240} height={80}>
-                        <div xmlns="http://www.w3.org/1999/xhtml" className="pointer-events-none">
-                          <div className="bg-white/95 dark:bg-slate-900/95 text-xs rounded-md shadow-lg border border-border p-2 text-foreground">
-                            {lines.map((l, idx) => (
-                              <div key={idx} className="leading-tight">{l}</div>
-                            ))}
-                          </div>
-                        </div>
-                      </foreignObject>
-                    </g>
-                  )
-                })()
-              )}
-          </div>
-          {/* Legend */}
-          <div className="flex flex-wrap items-center gap-4 mt-3 px-1">
-            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Leyenda:</span>
-            {[
-              { label: 'En tránsito', color: '#14b8a6' },
-              { label: 'Con retraso', color: '#ef4444' },
-              { label: 'Entregado', color: '#22c55e' },
-              { label: 'Otros', color: '#f59e0b' },
-            ].map((item) => (
-              <div key={item.label} className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                <span className="text-xs text-muted-foreground">{item.label}</span>
-              </div>
-            ))}
-          </div>
-          {/* Floating details panel removed — clicking a ship navigates to vessel details directly */}
-        </CardContent>
-      </Card>
-    </>
-  )
-}
+// Removed in favor of extracting the map to a separate component `route-map.tsx`.
 
 // ==================== Circular Progress Component ====================
-function CircularProgress({ value, size = 60, strokeWidth = 5, color = '#14b8a6' }: { value: number; size?: number; strokeWidth?: number; color?: string }) {
+function CircularProgress({ value, size = 60, strokeWidth = 5, color = '#ea580c' }: { value: number; size?: number; strokeWidth?: number; color?: string }) {
   const radius = (size - strokeWidth) / 2
   const circumference = 2 * Math.PI * radius
   const offset = circumference - (value / 100) * circumference
@@ -790,15 +388,15 @@ function PerformanceMetricsCard({ kpis, activeShipments }: { kpis: DashboardData
       bg: 'bg-amber-500/15',
       ring: 'ring-amber-500/30',
     },
-    {
-      icon: Gauge,
-      label: 'Tasa de cumplimiento',
-      value: '87',
-      unit: '%',
-      color: 'text-teal-500',
-      bg: 'bg-teal-500/15',
-      ring: 'ring-teal-500/30',
-    },
+     {
+       icon: Gauge,
+       label: 'Tasa de cumplimiento',
+       value: '87',
+       unit: '%',
+       color: 'text-orange-500',
+       bg: 'bg-orange-500/15',
+       ring: 'ring-orange-500/30',
+     },
     {
       icon: DollarSign,
       label: 'Valor en tránsito',
@@ -833,7 +431,7 @@ function PerformanceMetricsCard({ kpis, activeShipments }: { kpis: DashboardData
     <Card className="h-full">
       <CardHeader className="pb-2">
         <CardTitle className="text-base font-semibold flex items-center gap-2">
-          <Gauge className="w-4 h-4 text-teal-500" />
+           <Gauge className="w-4 h-4 text-orange-500" />
           Métricas de Rendimiento
         </CardTitle>
         <p className="text-xs text-muted-foreground">Indicadores clave de desempeño</p>
@@ -885,7 +483,7 @@ function PerformanceMetricsCard({ kpis, activeShipments }: { kpis: DashboardData
               <span className="text-xs text-muted-foreground">{metrics[1].unit}</span>
             </div>
           </div>
-          <CircularProgress value={87} size={44} strokeWidth={4} color="#14b8a6" />
+           <CircularProgress value={87} size={44} strokeWidth={4} color="#ea580c" />
         </motion.div>
 
         {/* Value in transit */}
@@ -969,12 +567,12 @@ const MOCK_WEATHER_DATA = [
 
 function WeatherSeaConditionsPanel() {
   const severityColors = {
-    normal: 'border-l-teal-400',
+    normal: 'border-l-orange-400',
     warning: 'border-l-amber-400',
     danger: 'border-l-red-400',
   }
   const severityBg = {
-    normal: 'bg-teal-50 dark:bg-teal-950/20',
+    normal: 'bg-orange-50 dark:bg-orange-950/20',
     warning: 'bg-amber-50 dark:bg-amber-950/20',
     danger: 'bg-red-50 dark:bg-red-950/20',
   }
@@ -1006,9 +604,9 @@ function WeatherSeaConditionsPanel() {
                 </div>
               </div>
               <Badge variant="secondary" className={`text-[9px] h-5 ${
-                w.severity === 'danger' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
-                w.severity === 'warning' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
-                'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400'
+                 w.severity === 'danger' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+                 w.severity === 'warning' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
               }`}>
                 {w.severity === 'danger' ? 'Peligro' : w.severity === 'warning' ? 'Precaución' : 'Normal'}
               </Badge>
@@ -1022,7 +620,7 @@ function WeatherSeaConditionsPanel() {
                 </div>
               </div>
               <div className="flex items-center gap-1">
-                <WavesIcon className="w-3 h-3 text-teal-500" />
+                 <WavesIcon className="w-3 h-3 text-orange-500" />
                 <div>
                   <p className="text-[9px] text-muted-foreground">Oleaje</p>
                   <p className="text-[11px] font-semibold">{w.waves}m</p>
@@ -1154,7 +752,7 @@ export function Overview() {
 
   // ==================== DATA SETUP ====================
   const kpiCards = [
-    { title: 'Envíos Activos', value: data.kpis.activeShipments, change: '+12%', icon: Ship, gradientFrom: 'from-teal-500', gradientTo: 'to-cyan-400', bgOpacity: 'bg-teal-500/15', textColor: 'text-teal-500', accentColor: 'bg-teal-500', ringColor: 'ring-teal-500/30' },
+     { title: 'Envíos Activos', value: data.kpis.activeShipments, change: '+12%', icon: Ship, gradientFrom: 'from-orange-500', gradientTo: 'to-sky-500', bgOpacity: 'bg-orange-500/15', textColor: 'text-orange-500', accentColor: 'bg-orange-500', ringColor: 'ring-orange-500/30' },
     { title: 'Permisos Pendientes', value: data.kpis.pendingPermits, change: '-5%', icon: FileCheck, gradientFrom: 'from-amber-500', gradientTo: 'to-yellow-400', bgOpacity: 'bg-amber-500/15', textColor: 'text-amber-500', accentColor: 'bg-amber-500', ringColor: 'ring-amber-500/30' },
     { title: 'Contenedores en Tránsito', value: data.kpis.inTransitContainers, change: '+8%', icon: Box, gradientFrom: 'from-sky-500', gradientTo: 'to-blue-400', bgOpacity: 'bg-sky-500/15', textColor: 'text-sky-500', accentColor: 'bg-sky-500', ringColor: 'ring-sky-500/30' },
     { title: 'Embarcaciones Operativas', value: data.kpis.operationalVessels, change: '+2%', icon: Anchor, gradientFrom: 'from-emerald-500', gradientTo: 'to-green-400', bgOpacity: 'bg-emerald-500/15', textColor: 'text-emerald-500', accentColor: 'bg-emerald-500', ringColor: 'ring-emerald-500/30' },
@@ -1178,7 +776,7 @@ export function Overview() {
   const quickStats = [
     { icon: DollarSign, label: 'Valor total en tránsito', value: '$12,450,000', color: 'text-emerald-500', glowColor: 'shadow-emerald-500/20', iconBg: 'bg-emerald-500/15' },
     { icon: Clock, label: 'Tiempo promedio de tránsito', value: '18 días', color: 'text-amber-500', glowColor: 'shadow-amber-500/20', iconBg: 'bg-amber-500/15' },
-    { icon: TrendingUp, label: 'Tasa de entrega a tiempo', value: '87%', color: 'text-teal-500', glowColor: 'shadow-teal-500/20', iconBg: 'bg-teal-500/15' },
+     { icon: TrendingUp, label: 'Tasa de entrega a tiempo', value: '87%', color: 'text-orange-500', glowColor: 'shadow-orange-500/20', iconBg: 'bg-orange-500/15' },
     { icon: Route, label: 'Ruta más activa', value: mostActiveRoute, color: 'text-sky-500', glowColor: 'shadow-sky-500/20', iconBg: 'bg-sky-500/15' },
   ]
 
@@ -1310,7 +908,8 @@ export function Overview() {
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={() => setActiveTab(action.tab)}
-                className="flex items-center gap-2.5 rounded-lg bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-400 hover:bg-teal-100 dark:hover:bg-teal-950/60 transition-colors px-4 py-3 text-sm font-medium shadow-sm"
+                 className="flex items-center gap-2.5 rounded-lg bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-950/60 transition-colors px-4 py-3 text-sm font-medium shadow-sm"
+
               >
                 <ActionIcon className="w-4 h-4 flex-shrink-0" />
                 <span className="truncate">{action.label}</span>
@@ -1328,7 +927,7 @@ export function Overview() {
       >
         <Card className="relative overflow-hidden">
           {/* Gradient background */}
-          <div className="absolute inset-0 bg-gradient-to-r from-teal-500/5 via-sky-500/5 to-emerald-500/5" />
+           <div className="absolute inset-0 bg-gradient-to-r from-orange-500/5 via-sky-500/5 to-emerald-500/5" />
           <ShimmerOverlay />
 
           <CardContent className="p-4 relative z-10">
@@ -1363,7 +962,7 @@ export function Overview() {
             <CardHeader className="pb-1 flex flex-row items-center justify-between">
               <div>
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
-                  <BarChart3 className="w-4 h-4 text-teal-500" />
+                   <BarChart3 className="w-4 h-4 text-orange-500" />
                   Envíos por Mes
                 </CardTitle>
                 <p className="text-xs text-muted-foreground">Últimos 6 meses</p>
@@ -1424,7 +1023,7 @@ export function Overview() {
             <CardHeader className="pb-1 flex flex-row items-center justify-between">
               <div>
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
-                  <PieChartIcon className="w-4 h-4 text-teal-500" />
+                   <PieChartIcon className="w-4 h-4 text-orange-500" />
                   Estado de Envíos
                 </CardTitle>
                 <p className="text-xs text-muted-foreground">Distribución actual</p>
@@ -1491,11 +1090,11 @@ export function Overview() {
                     {data.chartData.statusDistribution.map((item, idx) => {
                       const maxValue = Math.max(...data.chartData.statusDistribution.map(d => d.value))
                       const intensity = maxValue > 0 ? item.value / maxValue : 0
-                      const heatColor = intensity > 0.7
-                        ? 'bg-teal-500 text-white'
-                        : intensity > 0.4
-                          ? 'bg-teal-300 dark:bg-teal-700 text-white'
-                          : 'bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300'
+                       const heatColor = intensity > 0.7
+                         ? 'bg-orange-500 text-white'
+                         : intensity > 0.4
+                           ? 'bg-orange-300 dark:bg-orange-700 text-white'
+                           : 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300'
                       return (
                         <TooltipRadix key={item.name}>
                           <TooltipTrigger asChild>
@@ -1520,14 +1119,24 @@ export function Overview() {
 
       {/* ==================== ROUTE MAP & PERFORMANCE METRICS ==================== */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-        {/* Route Map - takes 3 columns */}
+        {/* Route Map - moved to Embarcaciones */}
         <motion.div
           className="lg:col-span-3"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.55, duration: 0.4 }}
         >
-          <RouteMapVisualization shipments={data.recentShipments} />
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-semibold">Mapa de Rutas Marítimas</CardTitle>
+              <p className="text-xs text-muted-foreground">El mapa se ha movido a la sección de Embarcaciones.</p>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-3">
+                <p className="text-sm">Para ver el mapa completo, abre <a href="/vessels" className="text-teal-600 hover:underline">Embarcaciones</a>.</p>
+              </div>
+            </CardContent>
+          </Card>
         </motion.div>
 
         {/* Performance Metrics - takes 2 columns */}
@@ -1559,12 +1168,12 @@ export function Overview() {
         <Card>
           <CardHeader className="pb-3 flex flex-row items-center justify-between">
             <CardTitle className="text-base font-semibold">Envíos Recientes</CardTitle>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-xs text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 font-medium gap-1"
-              onClick={() => setActiveTab('shipments')}
-            >
+               <Button
+                 variant="ghost"
+                 size="sm"
+                 className="text-xs text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300 gap-1"
+                 onClick={() => setActiveTab('shipments')}
+               >
               Ver todos los envíos
               <ChevronRight className="w-3 h-3" />
             </Button>

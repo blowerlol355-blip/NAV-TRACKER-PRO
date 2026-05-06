@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
@@ -21,8 +21,8 @@ import { exportToCSV, printTable } from '@/lib/export-utils'
 
 const CONTAINER_STATUS_COLORS: Record<string, string> = {
   'Vacío': 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
-  'Cargado': 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400',
-  'Lleno': 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400',
+  'Cargado': 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
+  'Lleno': 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
   'En tránsito': 'bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-400',
   'En espera': 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
   'Descargado': 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400',
@@ -32,8 +32,8 @@ const CONTAINER_STATUS_COLORS: Record<string, string> = {
 
 const CONTAINER_STATUS_BORDER: Record<string, string> = {
   'Vacío': 'border-l-slate-400',
-  'Cargado': 'border-l-teal-500',
-  'Lleno': 'border-l-teal-500',
+  'Cargado': 'border-l-orange-500',
+  'Lleno': 'border-l-orange-500',
   'En tránsito': 'border-l-sky-500',
   'En espera': 'border-l-amber-500',
   'Descargado': 'border-l-emerald-500',
@@ -58,11 +58,11 @@ const CONTAINER_TYPE_ICONS_LUCIDE: Record<string, React.ElementType> = {
 }
 
 const CONTAINER_TYPE_COLORS: Record<string, string> = {
-  "20' Estándar": 'text-teal-600 dark:text-teal-400 bg-teal-100 dark:bg-teal-900/30',
-  "40' Estándar": 'text-teal-600 dark:text-teal-400 bg-teal-100 dark:bg-teal-900/30',
+  "20' Estándar": 'text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30',
+  "40' Estándar": 'text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30',
   "40' High Cube": 'text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/30',
-  '20ft Dry': 'text-teal-600 dark:text-teal-400 bg-teal-100 dark:bg-teal-900/30',
-  '40ft Dry': 'text-teal-600 dark:text-teal-400 bg-teal-100 dark:bg-teal-900/30',
+  '20ft Dry': 'text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30',
+  '40ft Dry': 'text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30',
   '40ft HC': 'text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/30',
   'Refrigerado': 'text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/30',
   '20ft Refrigerado': 'text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/30',
@@ -97,6 +97,7 @@ interface ContainerData {
   sealNumber: string | null
   weight: number
   status: string
+  shipmentId: string
   shipment: { reference: string }
 }
 
@@ -108,13 +109,13 @@ function getWeightPercent(weight: number, type: string): number {
 function getWeightColor(percent: number): string {
   if (percent >= 90) return 'bg-red-500'
   if (percent >= 70) return 'bg-amber-500'
-  return 'bg-teal-500'
+  return 'bg-orange-500'
 }
 
 function getWeightBgColor(percent: number): string {
   if (percent >= 90) return 'bg-red-500/15'
   if (percent >= 70) return 'bg-amber-500/15'
-  return 'bg-teal-500/15'
+  return 'bg-orange-500/15'
 }
 
 export function Containers() {
@@ -126,6 +127,15 @@ export function Containers() {
   const [shipments, setShipments] = useState<{ id: string; reference: string }[]>([])
   const [adding, setAdding] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
+  
+  // Edit state
+  const [selectedContainer, setSelectedContainer] = useState<ContainerData | null>(null)
+  const [showEdit, setShowEdit] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
+
+  const attachmentsRef = useRef<HTMLInputElement | null>(null)
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
 
   const fetchContainers = useCallback(async () => {
     setLoading(true)
@@ -170,9 +180,9 @@ export function Containers() {
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }} className="space-y-4">
       {/* Summary Stats Bar - properly aligned */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-teal-500/10 border border-teal-500/20">
-          <Box className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
-          <span className="text-xs font-semibold text-teal-700 dark:text-teal-300">{totalContainers} Total</span>
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-orange-500/10 border border-orange-500/20">
+          <Box className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
+          <span className="text-xs font-semibold text-orange-700 dark:text-orange-300">{totalContainers} Total</span>
         </div>
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-500/10 border border-slate-500/20">
           <Scale className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
@@ -219,7 +229,7 @@ export function Containers() {
                 }}
                 variant="outline"
                 size="sm"
-                className="h-9 gap-1.5 border-teal-200 text-teal-700 hover:bg-teal-50 dark:border-teal-800 dark:text-teal-300 dark:hover:bg-teal-950/30"
+                className="h-9 gap-1.5 border-orange-200 text-orange-700 hover:bg-orange-50 dark:border-orange-800 dark:text-orange-300 dark:hover:bg-orange-950/30"
                 disabled={loading}
               >
                 <Download className="w-4 h-4" />
@@ -288,7 +298,14 @@ export function Containers() {
                     const typeColor = CONTAINER_TYPE_COLORS[c.type] || 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
 
                     return (
-                      <TableRow key={c.id} className={`border-l-4 ${CONTAINER_STATUS_BORDER[c.status] || ''}`}>
+                      <TableRow 
+                        key={c.id} 
+                        className={`border-l-4 cursor-pointer hover:bg-muted/50 transition-colors ${CONTAINER_STATUS_BORDER[c.status] || ''}`}
+                        onClick={() => {
+                          setSelectedContainer(c)
+                          setShowEdit(true)
+                        }}
+                      >
                         <TableCell>
                           <span className="font-mono text-sm font-semibold px-2 py-1 rounded bg-muted/70 inline-block">
                             {c.number}
@@ -362,6 +379,16 @@ export function Containers() {
             setAdding(true)
             setAddError(null)
             const form = new FormData(e.currentTarget as HTMLFormElement)
+            const fileToBase64 = (file: File) => new Promise<string>((resolve, reject) => {
+              const reader = new FileReader()
+              reader.onload = () => {
+                const result = reader.result as string
+                const parts = result.split(',')
+                resolve(parts[1] || '')
+              }
+              reader.onerror = (err) => reject(err)
+              reader.readAsDataURL(file)
+            })
             const body = {
               number: form.get('number') as string,
               type: form.get('type') as string,
@@ -369,6 +396,18 @@ export function Containers() {
               weight: form.get('weight') as string,
               shipmentId: form.get('shipmentId') as string,
               status: form.get('status') as string || 'Vacío',
+            }
+            const inputEl = (e.currentTarget.querySelector('input[name="attachments"]') as HTMLInputElement | null)
+            const files = inputEl?.files
+            if (files && files.length > 0) {
+              const arr = Array.from(files)
+              const attachments = await Promise.all(arr.map(async (file) => ({
+                filename: file.name,
+                contentBase64: await fileToBase64(file),
+                name: file.name,
+                type: file.type || 'application/octet-stream',
+              })))
+              ;(body as any).attachments = attachments
             }
             try {
               const res = await fetch('/api/containers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -418,12 +457,114 @@ export function Containers() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-2">
+              <input ref={attachmentsRef} type="file" name="attachments" multiple className="hidden" onChange={(e) => {
+                const files = e.target.files ? Array.from(e.target.files) : []
+                setSelectedFiles(files)
+              }} />
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="outline" onClick={() => attachmentsRef.current?.click()}>Adjuntar documentos</Button>
+                {selectedFiles.length > 0 && <span className="text-sm text-muted-foreground">{selectedFiles.length} archivos seleccionados</span>}
+              </div>
+            </div>
             {addError && <div className="text-sm text-red-600">{addError}</div>}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setShowAdd(false)}>Cancelar</Button>
-              <Button type="submit" className="bg-teal-600 hover:bg-teal-700" disabled={adding}>{adding ? 'Creando...' : 'Crear Contenedor'}</Button>
+              <Button type="submit" className="bg-orange-600 hover:bg-orange-700" disabled={adding}>{adding ? 'Creando...' : 'Crear Contenedor'}</Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Container Dialog */}
+      <Dialog open={showEdit} onOpenChange={setShowEdit}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Editar Contenedor</DialogTitle>
+          </DialogHeader>
+          {selectedContainer && (
+            <form className="space-y-3" onSubmit={async (e) => {
+              e.preventDefault()
+              setEditing(true)
+              setEditError(null)
+              const form = new FormData(e.currentTarget as HTMLFormElement)
+              const body = {
+                number: form.get('number') as string,
+                type: form.get('type') as string,
+                sealNumber: form.get('sealNumber') as string || null,
+                weight: form.get('weight') as string,
+                shipmentId: form.get('shipmentId') as string,
+                status: form.get('status') as string,
+              }
+              try {
+                const res = await fetch(`/api/containers/${selectedContainer.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+                const data = await res.json()
+                if (!res.ok) {
+                  setEditError(data?.error || 'Error al actualizar contenedor')
+                  return
+                }
+                setShowEdit(false)
+                toast.success('Contenedor actualizado exitosamente')
+                fetchContainers()
+              } catch (err) {
+                console.error('Update container failed', err)
+                setEditError('Error de red al actualizar contenedor')
+              } finally {
+                setEditing(false)
+              }
+            }}>
+              <div className="space-y-2">
+                <Label>Número de contenedor</Label>
+                <Input name="number" defaultValue={selectedContainer.number} required />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Tipo</Label>
+                  <Select name="type" defaultValue={selectedContainer.type}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {CONTAINER_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Peso (ton)</Label>
+                  <Input name="weight" type="number" step="0.1" defaultValue={selectedContainer.weight} required />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Sello (opcional)</Label>
+                <Input name="sealNumber" defaultValue={selectedContainer.sealNumber || ''} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Envío relacionado</Label>
+                  <Select name="shipmentId" defaultValue={selectedContainer.shipmentId} required>
+                    <SelectTrigger><SelectValue placeholder="Seleccionar envío" /></SelectTrigger>
+                    <SelectContent>
+                      {shipments.map(s => <SelectItem key={s.id} value={s.id}>{s.reference}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Estado</Label>
+                  <Select name="status" defaultValue={selectedContainer.status} required>
+                    <SelectTrigger><SelectValue placeholder="Seleccionar estado" /></SelectTrigger>
+                    <SelectContent>
+                      {Object.keys(CONTAINER_STATUS_COLORS).map(status => (
+                        <SelectItem key={status} value={status}>{status}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              {editError && <div className="text-sm text-red-600">{editError}</div>}
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setShowEdit(false)}>Cancelar</Button>
+                 <Button type="submit" className="bg-orange-600 hover:bg-orange-700" disabled={editing}>{editing ? 'Guardando...' : 'Guardar Cambios'}</Button>
+              </DialogFooter>
+            </form>
+          )}
         </DialogContent>
       </Dialog>
     </motion.div>

@@ -54,9 +54,9 @@ const ICON_MAP: Record<string, React.ElementType> = {
 }
 
 const TYPE_COLORS: Record<string, string> = {
-  shipment: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
+  shipment: 'bg-accent/15 text-accent dark:bg-accent/30 dark:text-accent',
   permit: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
-  vessel: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
+  vessel: 'bg-accent/12 text-accent dark:bg-accent/30 dark:text-accent',
   container: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
   document: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
   crew: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
@@ -198,7 +198,7 @@ export function SearchCommand() {
         {loading && (
           <div className="flex items-center justify-center py-6">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <div className="w-4 h-4 border-2 border-teal-500/30 border-t-teal-500 rounded-full animate-spin" />
+              <div className="w-4 h-4 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
               Buscando...
             </div>
           </div>

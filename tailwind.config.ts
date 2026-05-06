@@ -44,13 +44,62 @@ const config: Config = {
   			border: 'hsl(var(--border))',
   			input: 'hsl(var(--input))',
   			ring: 'hsl(var(--ring))',
-  			chart: {
+				chart: {
   				'1': 'hsl(var(--chart-1))',
   				'2': 'hsl(var(--chart-2))',
   				'3': 'hsl(var(--chart-3))',
   				'4': 'hsl(var(--chart-4))',
   				'5': 'hsl(var(--chart-5))'
-  			}
+				},
+				// Map common blue/teal/cyan/sky color tokens to the primary/accent CSS variables
+				teal: {
+					50: 'hsl(var(--primary) / 0.08)',
+					100: 'hsl(var(--primary) / 0.15)',
+					200: 'hsl(var(--primary) / 0.25)',
+					300: 'hsl(var(--primary) / 0.35)',
+					400: 'hsl(var(--primary) / 0.6)',
+					500: 'hsl(var(--primary))',
+					600: 'hsl(var(--primary) / 0.95)',
+					700: 'hsl(var(--primary) / 0.85)',
+					800: 'hsl(var(--primary) / 0.75)',
+					900: 'hsl(var(--primary) / 0.65)'
+				},
+				sky: {
+					50: 'hsl(var(--primary) / 0.06)',
+					100: 'hsl(var(--primary) / 0.12)',
+					200: 'hsl(var(--primary) / 0.2)',
+					300: 'hsl(var(--primary) / 0.3)',
+					400: 'hsl(var(--primary) / 0.5)',
+					500: 'hsl(var(--primary))',
+					600: 'hsl(var(--primary) / 0.9)',
+					700: 'hsl(var(--primary) / 0.8)',
+					800: 'hsl(var(--primary) / 0.7)',
+					900: 'hsl(var(--primary) / 0.6)'
+				},
+				cyan: {
+					50: 'hsl(var(--primary) / 0.06)',
+					100: 'hsl(var(--primary) / 0.12)',
+					200: 'hsl(var(--primary) / 0.2)',
+					300: 'hsl(var(--primary) / 0.3)',
+					400: 'hsl(var(--primary) / 0.5)',
+					500: 'hsl(var(--primary))',
+					600: 'hsl(var(--primary) / 0.9)',
+					700: 'hsl(var(--primary) / 0.8)',
+					800: 'hsl(var(--primary) / 0.7)',
+					900: 'hsl(var(--primary) / 0.6)'
+				},
+				blue: {
+					50: 'hsl(var(--primary) / 0.06)',
+					100: 'hsl(var(--primary) / 0.12)',
+					200: 'hsl(var(--primary) / 0.2)',
+					300: 'hsl(var(--primary) / 0.3)',
+					400: 'hsl(var(--primary) / 0.5)',
+					500: 'hsl(var(--primary))',
+					600: 'hsl(var(--primary) / 0.9)',
+					700: 'hsl(var(--primary) / 0.8)',
+					800: 'hsl(var(--primary) / 0.7)',
+					900: 'hsl(var(--primary) / 0.6)'
+				}
   		},
   		borderRadius: {
   			lg: 'var(--radius)',

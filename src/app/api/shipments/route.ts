@@ -1,5 +1,9 @@
 import { db } from '@/lib/db'
 import { NextRequest, NextResponse } from 'next/server'
+import fs from 'fs'
+import path from 'path'
+
+export const runtime = 'nodejs'
 
 export async function GET(request: NextRequest) {
   try {
@@ -54,8 +58,54 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
+
+    // Support attachments sent inline as base64 array: { attachments: [{ filename, contentBase64, name, type, category, ... }] }
+    const attachments = Array.isArray(body.attachments) ? body.attachments : []
+    delete body.attachments
+
+    // Convert some date-like fields if provided as strings
+    if (body.eta) body.eta = new Date(body.eta)
+    if (body.departureDate) body.departureDate = new Date(body.departureDate)
+    if (body.arrivalDate) body.arrivalDate = new Date(body.arrivalDate)
+
     const shipment = await db.shipment.create({ data: body })
-    return NextResponse.json(shipment, { status: 201 })
+
+    if (attachments.length > 0) {
+      const uploadsDir = path.join(process.cwd(), 'public', 'uploads')
+      if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true })
+
+      await Promise.all(
+        attachments.map(async (att: any) => {
+          if (!att.filename || !att.contentBase64) return
+          const filename = `${Date.now()}-${att.filename}`
+          const filePath = path.join(uploadsDir, filename)
+          const buffer = Buffer.from(att.contentBase64, 'base64')
+          await fs.promises.writeFile(filePath, buffer)
+
+          await db.document.create({
+            data: {
+              name: att.name || att.filename || filename,
+              type: att.type || 'file',
+              shipmentId: shipment.id,
+              uploadDate: new Date(),
+              expiryDate: att.expiryDate ? new Date(att.expiryDate) : undefined,
+              status: att.status || 'Vigente',
+              fileSize: String(buffer.length),
+              category: att.category || null,
+              documentSubtype: att.documentSubtype || null,
+              issuingAuthority: att.issuingAuthority || null,
+              // persist public URL to file
+              fileUrl: att.fileUrl || `/uploads/${filename}`,
+              // keep documentNumber if provided for legacy data
+              documentNumber: att.documentNumber || null,
+            },
+          })
+        })
+      )
+    }
+
+    const created = await db.shipment.findUnique({ where: { id: shipment.id }, include: { documents: true, permits: true, containers: true } })
+    return NextResponse.json(created || shipment, { status: 201 })
   } catch (error) {
     console.error('Create shipment error:', error)
     return NextResponse.json({ error: 'Failed to create shipment' }, { status: 500 })

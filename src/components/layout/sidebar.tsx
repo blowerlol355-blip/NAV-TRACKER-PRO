@@ -67,11 +67,11 @@ export function Sidebar() {
         className="h-screen bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 text-white flex flex-col flex-shrink-0 overflow-hidden relative"
       >
         {/* Decorative wave pattern at top */}
-        <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-teal-900/20 to-transparent pointer-events-none" />
+        <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-accent/20 to-transparent pointer-events-none" />
 
         {/* Logo */}
         <div className="flex items-center gap-3 px-4 h-16 flex-shrink-0 relative z-10">
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-teal-500/20">
+          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-accent to-accent-700 flex items-center justify-center flex-shrink-0 shadow-lg shadow-accent/20">
             <Anchor className="w-5 h-5 text-white" />
           </div>
           <AnimatePresence>
@@ -84,7 +84,7 @@ export function Sidebar() {
                 className="overflow-hidden whitespace-nowrap flex items-center gap-2"
               >
                 <span className="text-lg font-bold tracking-tight">NavTrack</span>
-                <span className="text-lg font-light text-teal-400">Pro</span>
+                <span className="text-lg font-light text-accent">Pro</span>
               </motion.div>
             )}
           </AnimatePresence>
@@ -126,19 +126,19 @@ export function Sidebar() {
                     onClick={() => setActiveTab(item.id)}
                     className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-300 relative group ${
                       isActive
-                        ? 'bg-teal-500/15 text-teal-400'
+                        ? 'bg-accent/15 text-accent'
                         : 'text-slate-400 hover:bg-slate-800/80 hover:text-slate-200'
                     }`}
                   >
                     {isActive && (
                       <motion.div
                         layoutId="activeBg"
-                        className="absolute inset-0 bg-teal-500/10 rounded-lg"
+                          className="absolute inset-0 bg-accent/10 rounded-lg"
                         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                       />
                     )}
                     <Icon className={`w-5 h-5 flex-shrink-0 relative z-10 transition-all duration-300 ${
-                      isActive ? 'text-teal-400 scale-110' : 'group-hover:text-slate-200 group-hover:scale-105'
+                          isActive ? 'text-accent scale-110' : 'group-hover:text-slate-200 group-hover:scale-105'
                     }`} />
                     <AnimatePresence>
                       {!sidebarCollapsed && (
@@ -154,21 +154,21 @@ export function Sidebar() {
                       )}
                     </AnimatePresence>
                     {!sidebarCollapsed && item.badge && (
-                      <span className="relative z-10 min-w-[20px] h-5 px-1.5 flex items-center justify-center rounded-full bg-teal-500/20 text-teal-400 text-[10px] font-bold transition-transform duration-200 group-hover:scale-110">
+                      <span className="relative z-10 min-w-[20px] h-5 px-1.5 flex items-center justify-center rounded-full bg-accent/20 text-accent text-[10px] font-bold transition-transform duration-200 group-hover:scale-110">
                         {item.badge}
                       </span>
                     )}
                     {isActive && (
                       <motion.div
-                        layoutId="activeIndicator"
-                        className="absolute left-0 w-[3px] h-6 bg-gradient-to-b from-teal-400 to-teal-500 rounded-r-full"
-                        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                      />
+                          layoutId="activeIndicator"
+                          className="absolute left-0 w-[3px] h-6 bg-gradient-to-b from-accent to-accent-600 rounded-r-full"
+                          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                        />
                     )}
                     {/* Hover slide indicator */}
                     {!isActive && (
                       <motion.div
-                        className="absolute left-0 w-[3px] h-0 bg-teal-400/40 rounded-r-full"
+                        className="absolute left-0 w-[3px] h-0 bg-accent/40 rounded-r-full"
                         whileHover={{ height: 24 }}
                         transition={{ duration: 0.2 }}
                       />
@@ -215,8 +215,8 @@ export function Sidebar() {
         {/* User section */}
         <div className="p-3 flex-shrink-0 relative z-10">
           <div className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-slate-800/50 transition-colors cursor-pointer">
-            <Avatar className="h-8 w-8 flex-shrink-0 ring-2 ring-teal-500/30">
-              <AvatarFallback className="bg-gradient-to-br from-teal-500 to-teal-700 text-white text-xs font-bold">AD</AvatarFallback>
+            <Avatar className="h-8 w-8 flex-shrink-0 ring-2 ring-accent/30">
+              <AvatarFallback className="bg-gradient-to-br from-accent to-accent-700 text-white text-xs font-bold">AD</AvatarFallback>
             </Avatar>
             <AnimatePresence>
               {!sidebarCollapsed && (

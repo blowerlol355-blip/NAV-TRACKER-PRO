@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -144,6 +144,8 @@ export function Crew() {
   const [showDetail, setShowDetail] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
   const [addingCrew, setAddingCrew] = useState(false)
+  const attachmentsRef = useRef<HTMLInputElement | null>(null)
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
 
   useEffect(() => {
     fetch('/api/crew')
@@ -195,6 +197,16 @@ export function Crew() {
     e.preventDefault()
     setAddingCrew(true)
     const form = new FormData(e.currentTarget)
+    const fileToBase64 = (file: File) => new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const result = reader.result as string
+        const parts = result.split(',')
+        resolve(parts[1] || '')
+      }
+      reader.onerror = (err) => reject(err)
+      reader.readAsDataURL(file)
+    })
     const certs = [
       { name: form.get('cert1Name') as string, number: form.get('cert1Number') as string || 'PEND', expiryDate: form.get('cert1Expiry') as string || '' },
     ].filter(c => c.name)
@@ -211,6 +223,18 @@ export function Crew() {
       licenseExpiry: form.get('licenseExpiry') as string || null,
       certifications: certs.length > 0 ? JSON.stringify(certs) : null,
       status: 'Activo',
+    }
+    const inputEl = (e.currentTarget.querySelector('input[name="attachments"]') as HTMLInputElement | null)
+    const files = inputEl?.files
+    if (files && files.length > 0) {
+      const arr = Array.from(files)
+      const attachments = await Promise.all(arr.map(async (file) => ({
+        filename: file.name,
+        contentBase64: await fileToBase64(file),
+        name: file.name,
+        type: file.type || 'application/octet-stream',
+      })))
+      ;(body as any).attachments = attachments
     }
     try {
       await fetch('/api/crew', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -956,9 +980,16 @@ export function Crew() {
 
               <DialogFooter className="pt-4">
                 <Button type="button" variant="outline" onClick={() => setShowAdd(false)}>Cancelar</Button>
-                <Button type="submit" className="bg-teal-600 hover:bg-teal-700" disabled={addingCrew}>
-                  {addingCrew ? 'Registrando...' : 'Registrar Tripulante'}
-                </Button>
+                <div className="flex items-center gap-3">
+                  <input ref={attachmentsRef} type="file" name="attachments" multiple className="hidden" onChange={(e) => {
+                    const files = e.target.files ? Array.from(e.target.files) : []
+                    setSelectedFiles(files)
+                  }} />
+                  <Button type="button" variant="outline" onClick={() => attachmentsRef.current?.click()}>Adjuntar documentos</Button>
+                  <Button type="submit" className="bg-teal-600 hover:bg-teal-700" disabled={addingCrew}>
+                    {addingCrew ? 'Registrando...' : 'Registrar Tripulante'}
+                  </Button>
+                </div>
               </DialogFooter>
             </form>
           </DialogContent>

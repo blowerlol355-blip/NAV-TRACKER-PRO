@@ -53,11 +53,12 @@ export async function POST(request: NextRequest) {
       type: body.type || null,
       shipmentId: body.shipmentId || null,
       status: body.status || 'Pendiente',
-      fileSize: body.fileSize ? Number(body.fileSize) : null,
+      fileSize: body.fileSize ? String(body.fileSize) : null,
       category: body.category || null,
       documentSubtype: body.documentSubtype || null,
       issuingAuthority: body.issuingAuthority || null,
       documentNumber: body.documentNumber || null,
+      // persist fileUrl (requires Prisma client to be up-to-date)
       fileUrl: body.fileUrl || null,
     }
 
