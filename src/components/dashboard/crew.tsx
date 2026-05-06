@@ -156,7 +156,10 @@ export function Crew() {
   }, [])
 
   const nationalities = useMemo(() => {
-    const items = crew.map(c => c.nationality).filter(n => typeof n === 'string' && n && n.trim().length > 0) as string[]
+    const items = crew
+      .filter((c): c is CrewMember => c != null && typeof c === 'object')
+      .map(c => (typeof c.nationality === 'string' ? c.nationality : ''))
+      .filter(n => n && n.trim().length > 0) as string[]
     const unique = Array.from(new Set(items))
     return unique.sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }))
   }, [crew])
