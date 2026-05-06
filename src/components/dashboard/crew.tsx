@@ -745,6 +745,66 @@ export function Crew() {
 
                     <Separator />
 
+                      {/* Documents Upload */}
+                      <div>
+                        <p className="text-sm font-semibold mb-2 flex items-center gap-2">
+                          <FileCheck className="w-4 h-4 text-teal-500" />
+                          Documentos del Tripulante
+                        </p>
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <input id="crew-attachments" type="file" multiple className="hidden" onChange={async (e) => {
+                              const files = e.target.files ? Array.from(e.target.files) : []
+                              if (!files.length) return
+                              const toBase64 = (file: File) => new Promise<string>((resolve, reject) => {
+                                const reader = new FileReader()
+                                reader.onload = () => { const res = reader.result as string; resolve(res.split(',')[1] || '') }
+                                reader.onerror = reject
+                                reader.readAsDataURL(file)
+                              })
+                              const attachments = await Promise.all(files.map(async (f) => ({ filename: f.name, contentBase64: await toBase64(f), name: f.name, type: f.type })))
+                              try {
+                                const res = await fetch(`/api/crew/${selectedCrew!.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ attachments }) })
+                                if (!res.ok) throw new Error('Upload failed')
+                                const updated = await res.json()
+                                // refresh crew list and selected
+                                const list = await fetch('/api/crew').then(r => r.json())
+                                setCrew(list)
+                                setSelectedCrew(updated)
+                                toast.success('Documentos subidos')
+                              } catch (err) {
+                                console.error(err)
+                                toast.error('Error al subir documentos')
+                              }
+                            }} />
+                            <Button size="sm" variant="outline" onClick={() => document.getElementById('crew-attachments')?.click()}>Adjuntar CV / Contrato</Button>
+                            <Button size="sm" onClick={async () => {
+                              // refresh documents
+                              const list = await fetch('/api/crew').then(r => r.json())
+                              setCrew(list)
+                              const fresh = list.find((x: any) => x.id === selectedCrew?.id)
+                              setSelectedCrew(fresh)
+                              toast.success('Documentos actualizados')
+                            }}>Refrescar</Button>
+                          </div>
+                          <div className="space-y-1">
+                            {(selectedCrew.documents && selectedCrew.documents.length > 0) ? selectedCrew.documents.map((doc: any) => (
+                              <div key={doc.id} className="flex items-center justify-between p-2 bg-background/60 rounded">
+                                <div>
+                                  <div className="font-medium text-sm">{doc.name}</div>
+                                  <div className="text-[11px] text-muted-foreground">{doc.type} • {doc.fileSize || '—'}</div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {doc.fileUrl && <a href={doc.fileUrl} download className="text-xs px-2 py-1 rounded bg-muted hover:bg-muted/80">Descargar</a>}
+                                </div>
+                              </div>
+                            )) : (
+                              <p className="text-sm text-muted-foreground">Sin documentos</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
                     {/* License Status Progress */}
                     <div>
                       <p className="text-sm font-semibold mb-2 flex items-center gap-2">

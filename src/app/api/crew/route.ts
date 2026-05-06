@@ -16,6 +16,9 @@ export async function GET() {
             }
           }
         }
+        , documents: {
+          select: { id: true, name: true, fileUrl: true, uploadDate: true, type: true, fileSize: true }
+        }
       },
       orderBy: { fullName: "asc" }
     });
