@@ -44,3 +44,30 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to fetch documents' }, { status: 500 })
   }
 }
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const data: Record<string, unknown> = {
+      name: body.name,
+      type: body.type || null,
+      shipmentId: body.shipmentId || null,
+      status: body.status || 'Pendiente',
+      fileSize: body.fileSize ? Number(body.fileSize) : null,
+      category: body.category || null,
+      documentSubtype: body.documentSubtype || null,
+      issuingAuthority: body.issuingAuthority || null,
+      documentNumber: body.documentNumber || null,
+      fileUrl: body.fileUrl || null,
+    }
+
+    if (body.uploadDate) data.uploadDate = new Date(body.uploadDate)
+    if (body.expiryDate) data.expiryDate = new Date(body.expiryDate)
+
+    const document = await db.document.create({ data })
+    return NextResponse.json(document, { status: 201 })
+  } catch (error) {
+    console.error('Create document error:', error)
+    return NextResponse.json({ error: 'Failed to create document' }, { status: 500 })
+  }
+}

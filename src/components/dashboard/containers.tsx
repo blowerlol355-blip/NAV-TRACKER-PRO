@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -120,6 +122,10 @@ export function Containers() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
+  const [showAdd, setShowAdd] = useState(false)
+  const [shipments, setShipments] = useState<{ id: string; reference: string }[]>([])
+  const [adding, setAdding] = useState(false)
+  const [addError, setAddError] = useState<string | null>(null)
 
   const fetchContainers = useCallback(async () => {
     setLoading(true)
@@ -138,6 +144,13 @@ export function Containers() {
   useEffect(() => {
     fetchContainers()
   }, [fetchContainers])
+
+  useEffect(() => {
+    fetch('/api/shipments?pageSize=200')
+      .then((r) => r.json())
+      .then((d) => setShipments((d.shipments || []).map((s: { id: string; reference: string }) => ({ id: s.id, reference: s.reference }))))
+      .catch(() => {})
+  }, [])
 
   // Stats
   const totalContainers = containers.length
@@ -235,6 +248,9 @@ export function Containers() {
               >
                 <Printer className="w-4 h-4" />
                 Imprimir
+              </Button>
+              <Button onClick={() => setShowAdd(true)} className="h-9 bg-teal-600 hover:bg-teal-700 text-white">
+                <Package className="w-4 h-4 mr-2" /> Nuevo Contenedor
               </Button>
             </div>
           </div>
@@ -334,6 +350,82 @@ export function Containers() {
           )}
         </CardContent>
       </Card>
+
+      {/* Add Container Dialog */}
+      <Dialog open={showAdd} onOpenChange={setShowAdd}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Nuevo Contenedor</DialogTitle>
+          </DialogHeader>
+          <form className="space-y-3" onSubmit={async (e) => {
+            e.preventDefault()
+            setAdding(true)
+            setAddError(null)
+            const form = new FormData(e.currentTarget as HTMLFormElement)
+            const body = {
+              number: form.get('number') as string,
+              type: form.get('type') as string,
+              sealNumber: form.get('sealNumber') as string || null,
+              weight: form.get('weight') as string,
+              shipmentId: form.get('shipmentId') as string,
+              status: form.get('status') as string || 'Vacío',
+            }
+            try {
+              const res = await fetch('/api/containers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+              const data = await res.json()
+              if (!res.ok) {
+                setAddError(data?.error || 'Error al crear contenedor')
+                return
+              }
+              setShowAdd(false)
+              fetchContainers()
+            } catch (err) {
+              console.error('Create container failed', err)
+              setAddError('Error de red al crear contenedor')
+            } finally {
+              setAdding(false)
+            }
+          }}>
+            <div className="space-y-2">
+              <Label>Número de contenedor</Label>
+              <Input name="number" required />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Tipo</Label>
+                <Select name="type" defaultValue={CONTAINER_TYPES[0]}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {CONTAINER_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Peso (ton)</Label>
+                <Input name="weight" type="number" step="0.1" required />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Sello (opcional)</Label>
+              <Input name="sealNumber" />
+            </div>
+            <div className="space-y-2">
+              <Label>Envío relacionado</Label>
+              <Select name="shipmentId" required>
+                <SelectTrigger><SelectValue placeholder="Seleccionar envío" /></SelectTrigger>
+                <SelectContent>
+                  {shipments.map(s => <SelectItem key={s.id} value={s.id}>{s.reference}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            {addError && <div className="text-sm text-red-600">{addError}</div>}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setShowAdd(false)}>Cancelar</Button>
+              <Button type="submit" className="bg-teal-600 hover:bg-teal-700" disabled={adding}>{adding ? 'Creando...' : 'Crear Contenedor'}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </motion.div>
   )
 }

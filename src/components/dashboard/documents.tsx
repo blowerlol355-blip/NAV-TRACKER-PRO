@@ -22,6 +22,7 @@ import {
   ClipboardList, Leaf, Download, CheckCircle2,
   Hourglass, Link2, Copy, Eye, Building, Hash, CalendarDays,
   TrendingUp, FlaskConical, Scale, TreePine, Microscope,
+  Upload,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -152,6 +153,7 @@ interface Document {
   id: string
   name: string
   type: string
+  fileUrl?: string
   category: string | null
   shipmentId: string
   uploadDate: string
@@ -197,6 +199,8 @@ export function Documents() {
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [copiedHash, setCopiedHash] = useState(false)
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
+  const [uploading, setUploading] = useState(false)
 
   const fetchDocuments = useCallback(async () => {
     setLoading(true)
@@ -254,6 +258,62 @@ export function Documents() {
     setDialogOpen(true)
   }
 
+  const handleFileUpload = async (file: File) => {
+    setUploading(true)
+    try {
+      const reader = new FileReader()
+      const baseName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.\-]/g, '_')}`
+      const contentBase64 = await new Promise<string>((res, rej) => {
+        reader.onload = () => {
+          const result = reader.result as string
+          const comma = result.indexOf(',')
+          res(result.slice(comma + 1))
+        }
+        reader.onerror = rej
+        reader.readAsDataURL(file)
+      })
+
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: baseName, contentBase64: contentBase64 }),
+      })
+      if (!res.ok) throw new Error('Upload failed')
+      const data = await res.json()
+
+      const tempDoc: Document = {
+        id: `local-${Date.now()}`,
+        name: file.name,
+        type: 'Documento Cargado',
+        category: null,
+        shipmentId: '',
+        uploadDate: new Date().toISOString(),
+        expiryDate: null,
+        status: 'Vigente',
+        fileSize: `${Math.round(file.size / 1024)} KB`,
+        documentSubtype: null,
+        issuingAuthority: null,
+        documentNumber: null,
+        isVerified: false,
+        blockchainHash: null,
+        shipment: { reference: '' },
+        fileUrl: data.url,
+      }
+      setDocuments((prev) => [tempDoc, ...prev])
+      setUploadDialogOpen(false)
+    } catch (e) {
+      console.error('Upload error', e)
+      alert('Error al subir el archivo')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const onFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]
+    if (f) await handleFileUpload(f)
+  }
+
   const copyBlockchainHash = (hash: string) => {
     navigator.clipboard.writeText(hash).then(() => {
       setCopiedHash(true)
@@ -306,9 +366,14 @@ export function Documents() {
             <p className="text-sm text-muted-foreground">{totalDocs} documentos registrados</p>
           </div>
         </div>
-        <Button variant="outline" size="sm" className="gap-1.5" onClick={exportCSV} disabled={documents.length === 0}>
-          <Download className="w-3.5 h-3.5" /> Exportar CSV
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={exportCSV} disabled={documents.length === 0}>
+            <Download className="w-3.5 h-3.5" /> Exportar CSV
+          </Button>
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setUploadDialogOpen(true)}>
+            <Upload className="w-3.5 h-3.5" /> Subir documento
+          </Button>
+        </div>
       </div>
 
       {/* Enhanced Summary Stats */}
@@ -697,6 +762,48 @@ export function Documents() {
                     </div>
                   </DialogTitle>
                 </DialogHeader>
+                <div className="flex items-center justify-end gap-2 mt-2">
+                  {selectedDoc.fileUrl && (
+                    <a href={selectedDoc.fileUrl} download className="text-xs px-2 py-1 rounded bg-muted hover:bg-muted/80">Descargar original</a>
+                  )}
+                  <button
+                    className="text-xs px-2 py-1 rounded bg-teal-600 text-white"
+                    onClick={() => {
+                      // Export visible detail as CSV (Excel-friendly)
+                      const headers = ['Campo', 'Valor']
+                      const rows = [
+                        ['Nombre', selectedDoc.name],
+                        ['Tipo', selectedDoc.type],
+                        ['Categoría', selectedDoc.category || ''],
+                        ['Número Documento', selectedDoc.documentNumber || ''],
+                        ['Autoridad', selectedDoc.issuingAuthority || ''],
+                        ['Envío', selectedDoc.shipment?.reference || ''],
+                        ['Fecha Subida', selectedDoc.uploadDate ? formatDate(selectedDoc.uploadDate) : ''],
+                        ['Fecha Vencimiento', selectedDoc.expiryDate ? formatDate(selectedDoc.expiryDate) : ''],
+                      ]
+                      const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(','))].join('\n')
+                      const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
+                      const url = URL.createObjectURL(blob)
+                      const a = document.createElement('a')
+                      a.href = url
+                      a.download = `${selectedDoc.name.replace(/[^a-z0-9]/gi,'_') || 'documento'}.csv`
+                      a.click()
+                      URL.revokeObjectURL(url)
+                    }}
+                  >Exportar Excel</button>
+                  <button
+                    className="text-xs px-2 py-1 rounded bg-slate-700 text-white"
+                    onClick={() => {
+                      // Open printable view for PDF export
+                      const w = window.open('', '_blank')
+                      if (!w) return
+                      const html = `<html><head><title>${selectedDoc.name}</title><meta charset="utf-8" /></head><body><h2>${selectedDoc.name}</h2><p><strong>Tipo:</strong> ${selectedDoc.type}</p><p><strong>Categoría:</strong> ${selectedDoc.category || '—'}</p><p><strong>Envío:</strong> ${selectedDoc.shipment?.reference || '—'}</p><p><strong>Subido:</strong> ${selectedDoc.uploadDate ? formatDate(selectedDoc.uploadDate) : '—'}</p><hr/><pre>${selectedDoc.documentNumber ? 'Documento: ' + selectedDoc.documentNumber : ''}</pre></body></html>`
+                      w.document.write(html)
+                      w.document.close()
+                      setTimeout(() => w.print(), 300)
+                    }}
+                  >Descargar PDF</button>
+                </div>
 
                 <div className="space-y-4 mt-2">
                   {/* Verification & Blockchain Badges */}
@@ -867,6 +974,23 @@ export function Documents() {
               </>
             )
           })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Upload Dialog */}
+      <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Subir documento</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 mt-2">
+            <p className="text-sm text-muted-foreground">Selecciona un archivo para subir. El archivo se guardará en /public/uploads y estará disponible para descarga inmediata.</p>
+            <input type="file" onChange={onFileInputChange} className="w-full" />
+            {uploading && <div className="text-sm text-muted-foreground">Subiendo...</div>}
+            <div className="flex justify-end">
+              <button onClick={() => setUploadDialogOpen(false)} className="text-xs px-3 py-1 rounded bg-muted">Cancelar</button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </motion.div>

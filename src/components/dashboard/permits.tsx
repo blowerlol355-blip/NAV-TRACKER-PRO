@@ -148,6 +148,8 @@ export function Permits() {
   const [selectedPermit, setSelectedPermit] = useState<Permit | null>(null)
   const [permitShipments, setPermitShipments] = useState<ShipmentInfo[]>([])
   const [shipments, setShipments] = useState<{ id: string; reference: string }[]>([])
+  const [adding, setAdding] = useState(false)
+  const [addError, setAddError] = useState<string | null>(null)
 
   const fetchPermits = useCallback(async () => {
     setLoading(true)
@@ -199,6 +201,8 @@ export function Permits() {
 
   const handleAdd = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    setAdding(true)
+    setAddError(null)
     const form = new FormData(e.currentTarget)
     const body = {
       type: form.get('type') as string,
@@ -209,9 +213,22 @@ export function Permits() {
       expiryDate: form.get('expiryDate') as string || null,
       status: 'Pendiente',
     }
-    await fetch('/api/permits', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-    setShowAdd(false)
-    fetchPermits()
+
+    try {
+      const res = await fetch('/api/permits', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      const data = await res.json()
+      if (!res.ok) {
+        setAddError(data?.error || 'Error al crear permiso')
+        return
+      }
+      setShowAdd(false)
+      fetchPermits()
+    } catch (err) {
+      console.error('Create permit failed', err)
+      setAddError('Error de red al crear permiso')
+    } finally {
+      setAdding(false)
+    }
   }
 
   const handleRowClick = (permit: Permit) => {

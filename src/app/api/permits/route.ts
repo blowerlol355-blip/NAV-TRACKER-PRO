@@ -69,7 +69,27 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const permit = await db.permit.create({ data: body })
+    if (!body.shipmentId) {
+      return NextResponse.json({ error: 'shipmentId is required' }, { status: 400 })
+    }
+
+    const data: Record<string, unknown> = {
+      type: body.type,
+      number: body.number,
+      shipmentId: body.shipmentId,
+      authority: body.authority || null,
+      notes: body.notes || null,
+      status: body.status || 'Pendiente',
+    }
+
+    if (body.issueDate) {
+      data.issueDate = new Date(body.issueDate)
+    }
+    if (body.expiryDate) {
+      data.expiryDate = new Date(body.expiryDate)
+    }
+
+    const permit = await db.permit.create({ data })
     return NextResponse.json(permit, { status: 201 })
   } catch (error) {
     console.error('Create permit error:', error)

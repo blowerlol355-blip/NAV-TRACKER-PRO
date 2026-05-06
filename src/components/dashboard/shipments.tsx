@@ -311,7 +311,7 @@ export function Shipments() {
       eta: form.get('eta') as string || null,
       departureDate: null,
       destinationCountry: form.get('destinationCountry') as string || null,
-      regulatoryCategory: form.get('regulatoryCategory') as string || null,
+      regulatoryCategory: (form.get('regulatoryCategory') as string) === 'none' ? null : (form.get('regulatoryCategory') as string) || null,
       incoterm: form.get('incoterm') as string || null,
       packagingType: form.get('packagingType') as string || null,
     }
@@ -1421,10 +1421,10 @@ export function Shipments() {
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">Categoría Regulatoria</Label>
-                  <Select name="regulatoryCategory" defaultValue="">
+                  <Select name="regulatoryCategory" defaultValue="none">
                     <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Ninguna</SelectItem>
+                      <SelectItem value="none">Ninguna</SelectItem>
                       <SelectItem value="Alimento">Alimento</SelectItem>
                       <SelectItem value="Forestal">Forestal</SelectItem>
                       <SelectItem value="Químico">Químico</SelectItem>

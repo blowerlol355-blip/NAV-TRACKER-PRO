@@ -32,3 +32,29 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to fetch containers' }, { status: 500 })
   }
 }
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+
+    if (!body.number || !body.type || !body.shipmentId || body.weight === undefined) {
+      return NextResponse.json({ error: 'number, type, shipmentId and weight are required' }, { status: 400 })
+    }
+
+    const data: Record<string, unknown> = {
+      number: body.number,
+      type: body.type,
+      shipmentId: body.shipmentId,
+      weight: typeof body.weight === 'string' ? parseFloat(body.weight) : body.weight,
+      status: body.status || 'Vacío',
+      sealNumber: body.sealNumber || null,
+      dimensions: body.dimensions || null,
+    }
+
+    const container = await db.container.create({ data })
+    return NextResponse.json(container, { status: 201 })
+  } catch (error) {
+    console.error('Create container error:', error)
+    return NextResponse.json({ error: 'Failed to create container' }, { status: 500 })
+  }
+}

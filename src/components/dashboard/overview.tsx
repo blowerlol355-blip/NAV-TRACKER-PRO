@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
@@ -317,6 +318,13 @@ const PORT_COORDS: Record<string, { x: number; y: number; label: string }> = {
   'COCTG': { x: 235, y: 210, label: 'Cartagena' },
   'BRSSZ': { x: 280, y: 260, label: 'Santos' },
   'JPYOK': { x: 700, y: 165, label: 'Yokohama' },
+  // Aliases / readable port keys used by seed data
+  'GUAYAQUIL': { x: 235, y: 210, label: 'Guayaquil' },
+  'VALENCIA': { x: 375, y: 155, label: 'Valencia' },
+  'CALLAO': { x: 215, y: 220, label: 'Callao' },
+  'CARTAGENA': { x: 235, y: 210, label: 'Cartagena' },
+  'MANZANILLO': { x: 225, y: 210, label: 'Manzanillo' },
+  'ROTTERDAM': { x: 400, y: 130, label: 'Rotterdam' },
 }
 
 const ROUTE_STATUS_COLORS: Record<string, string> = {
@@ -331,6 +339,56 @@ const DEFAULT_ROUTE_COLOR = '#f59e0b'
 function RouteMapVisualization({ shipments }: { shipments: DashboardData['recentShipments'] }) {
   const [hoveredRoute, setHoveredRoute] = useState<string | null>(null)
   const [tooltipInfo, setTooltipInfo] = useState<{ x: number; y: number; shipment: typeof shipments[0] } | null>(null)
+  const router = useRouter()
+
+  const formatDateTime = (d: string | null | undefined) => {
+    if (!d) return '—'
+    try {
+      return new Date(d).toLocaleString()
+    } catch (e) {
+      return String(d)
+    }
+  }
+
+  const formatRelativeTime = (d: string | null | undefined) => {
+    if (!d) return '—'
+    const then = new Date(d).getTime()
+    const now = Date.now()
+    const diff = then - now
+    const abs = Math.abs(diff)
+    const weeks = Math.floor(abs / (1000 * 60 * 60 * 24 * 7))
+    const days = Math.floor((abs % (1000 * 60 * 60 * 24 * 7)) / (1000 * 60 * 60 * 24))
+    const hours = Math.floor((abs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+    const mins = Math.floor((abs % (1000 * 60 * 60)) / (1000 * 60))
+    const parts = []
+    if (weeks) parts.push(`${weeks}w`)
+    if (days) parts.push(`${days}d`)
+    if (!weeks && hours) parts.push(`${hours}h`)
+    if (!weeks && !days && !hours) parts.push(`${mins}m`)
+    const when = diff > 0 ? `in ${parts.join(' ')}` : `${parts.join(' ')} ago`
+    return when
+  }
+
+  // Geographic coordinates for ports (approximate lat/lon) used for distance-based ETA prediction
+  const PORT_GEO: Record<string, { lat: number; lon: number }> = {
+    'GUAYAQUIL': { lat: -2.170998, lon: -79.922359 },
+    'VALENCIA': { lat: 39.4699, lon: -0.3763 },
+    'CALLAO': { lat: -12.056, lon: -77.118 },
+    'CARTAGENA': { lat: 10.391, lon: -75.4794 },
+    'MANZANILLO': { lat: 19.1411, lon: -104.315 },
+    'ROTTERDAM': { lat: 51.947, lon: 4.142 },
+  }
+
+  // Haversine formula to compute great-circle distance (km)
+  const haversineKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const toRad = (v: number) => (v * Math.PI) / 180
+    const R = 6371 // km
+    const dLat = toRad(lat2 - lat1)
+    const dLon = toRad(lon2 - lon1)
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    return R * c
+  }
 
   const uniqueRoutes = useMemo(() => {
     const seen = new Set<string>()
@@ -450,6 +508,16 @@ function RouteMapVisualization({ shipments }: { shipments: DashboardData['recent
                 const routeColor = ROUTE_STATUS_COLORS[shipment.status] || DEFAULT_ROUTE_COLOR
                 const isHovered = hoveredRoute === routeKey
                 const pathD = getCurvedPath(origin.x, origin.y, dest.x, dest.y)
+                // compute progress based on departureDate -> eta (0..1). fallback 0.5
+                const now = Date.now()
+                const depMs = shipment.departureDate ? new Date(shipment.departureDate).getTime() : null
+                const etaMs = shipment.eta ? new Date(shipment.eta).getTime() : null
+                let progress = 0.5
+                if (depMs && etaMs && etaMs > depMs) {
+                  progress = Math.min(1, Math.max(0, (now - depMs) / (etaMs - depMs)))
+                }
+                const shipX = origin.x + (dest.x - origin.x) * progress
+                const shipY = origin.y + (dest.y - origin.y) * progress
 
                 return (
                   <g key={routeKey}>
@@ -485,8 +553,30 @@ function RouteMapVisualization({ shipments }: { shipments: DashboardData['recent
                         setTooltipInfo(null)
                       }}
                     />
-                    {/* Animated ship dot */}
-                    <circle r="3" fill={routeColor} className="ship-icon" style={{ '--route-path': `'${pathD}'` } as React.CSSProperties} opacity={isHovered ? 1 : 0.8} />
+                    {/* Ship position (clickable) */}
+                    <g
+                      transform={`translate(${shipX}, ${shipY})`}
+                      onClick={() => {
+                        try {
+                          if (shipment.vesselId) router.push(`/vessels/${shipment.vesselId}`)
+                        } catch (e) {
+                          if (typeof window !== 'undefined' && shipment.vesselId) window.location.href = `/vessels/${shipment.vesselId}`
+                        }
+                      }}
+                      onDoubleClick={() => {
+                        try {
+                          if (shipment.vesselId) router.push(`/vessels/${shipment.vesselId}`)
+                        } catch (e) {
+                          if (typeof window !== 'undefined' && shipment.vesselId) window.location.href = `/vessels/${shipment.vesselId}`
+                        }
+                      }}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <circle r={isHovered ? 5 : 4} fill={routeColor} stroke="white" strokeWidth="1" />
+                      <text x={8} y={3} fontSize="8" fill="currentColor" className="text-slate-700 dark:text-slate-200">
+                        {shipment.vessel?.name || 'Vessel'} {shipment.vessel?.speed ? `${(shipment.vessel as any).speed} kt` : ''}
+                      </text>
+                    </g>
                     {/* Origin dot */}
                     <circle
                       cx={origin.x} cy={origin.y} r={isHovered ? 5 : 4}
@@ -546,6 +636,86 @@ function RouteMapVisualization({ shipments }: { shipments: DashboardData['recent
                 </g>
               )}
             </svg>
+
+              {/* Tooltip panel for hovered route */}
+              {tooltipInfo && tooltipInfo.shipment && (
+                (() => {
+                  const s = tooltipInfo.shipment
+                  const etaText = formatDateTime(s.eta)
+                  const arrivalText = s.arrivalDate ? formatDateTime(s.arrivalDate) : '—'
+                  // compute delay relative to ETA
+                  let delayLabel = '—'
+                  if (s.eta) {
+                    const etaMs = new Date(s.eta).getTime()
+                    const now = Date.now()
+                    const diff = now - etaMs
+                    const abs = Math.abs(diff)
+                    const weeks = Math.floor(abs / (1000 * 60 * 60 * 24 * 7))
+                    const days = Math.floor((abs % (1000 * 60 * 60 * 24 * 7)) / (1000 * 60 * 60 * 24))
+                    const hours = Math.floor((abs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+                    const mins = Math.floor((abs % (1000 * 60 * 60)) / (1000 * 60))
+                    const parts = []
+                    if (weeks) parts.push(`${weeks}w`)
+                    if (days) parts.push(`${days}d`)
+                    if (!weeks && hours) parts.push(`${hours}h`)
+                    if (!weeks && !days && !hours) parts.push(`${mins}m`)
+                    if (diff > 0) {
+                      // delayed
+                      delayLabel = `${parts.join(' ')} delayed`
+                    } else {
+                      // time to ETA
+                      delayLabel = `ETA ${parts.join(' ')}`
+                    }
+                  }
+
+                  const lines = [
+                    `${s.reference} — ${s.clientName || '—'}`,
+                    `Status: ${s.status || '—'}`,
+                    `ETA: ${etaText} (${formatRelativeTime(s.eta)})`,
+                    `Arrival: ${arrivalText}`,
+                    `Delay: ${delayLabel}`,
+                    (() => {
+                      try {
+                        const originGeo = PORT_GEO[s.originPort]
+                        const destGeo = PORT_GEO[s.destinationPort]
+                        if (!originGeo || !destGeo) return 'Predicted ETA: —'
+                        const distKm = haversineKm(originGeo.lat, originGeo.lon, destGeo.lat, destGeo.lon)
+                        // vessel speed in knots -> km/h (1 knot = 1.852 km/h)
+                        const vesselSpeedKn = s.vessel && (s.vessel as any).speed ? (s.vessel as any).speed : 12
+                        const speedKmh = vesselSpeedKn * 1.852
+                        const hours = Math.max(0.5, distKm / Math.max(0.1, speedKmh))
+                        const predictedMs = Date.now() + Math.round(hours * 3600 * 1000)
+                        const predicted = new Date(predictedMs)
+                        const predictedText = formatDateTime(predicted.toISOString())
+                        // compare with declared ETA
+                        if (s.eta) {
+                          const etaMs = new Date(s.eta).getTime()
+                          const diffH = Math.round((predictedMs - etaMs) / (1000 * 60 * 60))
+                          if (diffH > 0) return `Predicted ETA: ${predictedText} (+${diffH}h)`
+                          if (diffH < 0) return `Predicted ETA: ${predictedText} (${Math.abs(diffH)}h early)`
+                        }
+                        return `Predicted ETA: ${predictedText}`
+                      } catch (e) {
+                        return 'Predicted ETA: —'
+                      }
+                    })(),
+                  ]
+
+                  return (
+                    <g key="route-tooltip" pointerEvents="none">
+                      <foreignObject x={tooltipInfo.x - 120} y={Math.max(8, tooltipInfo.y - 70)} width={240} height={80}>
+                        <div xmlns="http://www.w3.org/1999/xhtml" className="pointer-events-none">
+                          <div className="bg-white/95 dark:bg-slate-900/95 text-xs rounded-md shadow-lg border border-border p-2 text-foreground">
+                            {lines.map((l, idx) => (
+                              <div key={idx} className="leading-tight">{l}</div>
+                            ))}
+                          </div>
+                        </div>
+                      </foreignObject>
+                    </g>
+                  )
+                })()
+              )}
           </div>
           {/* Legend */}
           <div className="flex flex-wrap items-center gap-4 mt-3 px-1">
@@ -562,6 +732,7 @@ function RouteMapVisualization({ shipments }: { shipments: DashboardData['recent
               </div>
             ))}
           </div>
+          {/* Floating details panel removed — clicking a ship navigates to vessel details directly */}
         </CardContent>
       </Card>
     </>
