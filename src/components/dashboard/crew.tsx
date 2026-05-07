@@ -1,5 +1,6 @@
-'use client'
+ 'use client'
 
+import React from 'react'
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -19,7 +20,7 @@ import {
   Users, UserCheck, Navigation, AlertTriangle, XCircle, Search, Plus,
   ChevronDown, ChevronRight, Phone, Mail, Shield, Award, FileCheck,
   Ship, Eye, UserPlus, IdCard, Globe2, Building2, Calendar, Clock,
-  Ban, AlertOctagon, Download, Printer
+  Ban, AlertOctagon, Download, Printer, RefreshCw, Paperclip
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
@@ -39,6 +40,27 @@ const ROLE_COLORS: Record<string, string> = {
   'Marinero': 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
   'Jefe de Máquinas': 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
   'Ingeniero': 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
+}
+
+const SURFACE_CARD = 'border border-orange-400/25 bg-zinc-950/95 text-zinc-100 shadow-[0_8px_24px_rgba(0,0,0,0.35)]'
+const SURFACE_SOFT = 'rounded-lg border border-orange-400/20 bg-zinc-900/80'
+
+const ROLE_BADGE_DARK: Record<string, string> = {
+  'Capitán': 'border-amber-400/45 bg-amber-500/15 text-amber-200',
+  'Piloto': 'border-sky-400/45 bg-sky-500/15 text-sky-200',
+  'Oficial': 'border-indigo-400/45 bg-indigo-500/15 text-indigo-200',
+  'Marinero': 'border-zinc-400/45 bg-zinc-500/15 text-zinc-200',
+  'Jefe de Máquinas': 'border-orange-400/50 bg-orange-500/20 text-orange-200',
+  'Ingeniero': 'border-purple-400/45 bg-purple-500/15 text-purple-200',
+}
+
+const ROLE_ROW_ACCENT: Record<string, string> = {
+  'Capitán': 'border-l-2 border-l-amber-400',
+  'Piloto': 'border-l-2 border-l-sky-400',
+  'Oficial': 'border-l-2 border-l-indigo-400',
+  'Marinero': 'border-l-2 border-l-zinc-400',
+  'Jefe de Máquinas': 'border-l-2 border-l-orange-400',
+  'Ingeniero': 'border-l-2 border-l-purple-400',
 }
 
 const ROLE_ICONS: Record<string, string> = {
@@ -81,6 +103,9 @@ interface Assignment {
     status: string
     origin: string
     destination: string
+    vessel?: {
+      name: string
+    } | null
   }
 }
 
@@ -149,10 +174,16 @@ export function Crew() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
 
   useEffect(() => {
+    const normalize = (d: any): CrewMember[] => {
+      if (Array.isArray(d)) return d
+      if (d && Array.isArray(d.crew)) return d.crew
+      if (d && Array.isArray(d.data)) return d.data
+      return []
+    }
     fetch('/api/crew')
       .then((r) => r.json())
-      .then((d) => { setCrew(d); setLoading(false) })
-      .catch(() => setLoading(false))
+      .then((d) => { setCrew(normalize(d)); setLoading(false) })
+      .catch(() => { setCrew([]); setLoading(false) })
   }, [])
 
   const nationalities = useMemo(() => {
@@ -274,9 +305,9 @@ export function Crew() {
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }} className="space-y-4">
         {/* Summary Stats Bar */}
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-teal-500/10 border border-teal-500/20">
-            <Users className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
-            <span className="text-xs font-semibold text-teal-700 dark:text-teal-300">{totalCrew} Tripulantes</span>
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-900 border border-orange-500/40">
+            <Users className="w-3.5 h-3.5 text-orange-400" />
+            <span className="text-xs font-semibold text-orange-300">{totalCrew} Tripulantes</span>
           </div>
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
             <UserCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
@@ -301,7 +332,7 @@ export function Crew() {
                   if (filteredCrew.length === 0) { toast.error('No hay datos para exportar'); return }
                   exportToCSV(`tripulacion_${new Date().toISOString().slice(0, 10)}`, filteredCrew.map((c) => ({
                     Nombre: c.fullName, Licencia: c.licenseId, Rol: c.role,
-                    Nacionalidad: c.nacionalidad, Empresa: c.carrierCompany || '',
+                    Nacionalidad: c.nationality, Empresa: c.carrierCompany || '',
                     'Licencia Vence': c.licenseExpiry ? new Date(c.licenseExpiry).toLocaleDateString('es-MX') : '',
                     Estado: c.status,
                   })))
@@ -309,7 +340,7 @@ export function Crew() {
                 }}
                 variant="outline"
                 size="sm"
-                className="h-9 gap-1.5 border-teal-200 text-teal-700 hover:bg-teal-50 dark:border-teal-800 dark:text-teal-300 dark:hover:bg-teal-950/30"
+                className="h-9 gap-1.5 border-orange-500/40 bg-zinc-900 text-orange-200 hover:bg-zinc-800"
               >
                 <Download className="w-4 h-4" />
                 Exportar CSV
@@ -327,19 +358,19 @@ export function Crew() {
                     { key: 'Estado', label: 'Estado' },
                   ], filteredCrew.map((c) => ({
                     Nombre: c.fullName, Licencia: c.licenseId, Rol: c.role,
-                    Nacionalidad: c.nacionalidad, Empresa: c.carrierCompany || '',
+                    Nacionalidad: c.nationality, Empresa: c.carrierCompany || '',
                     'Licencia Vence': c.licenseExpiry ? new Date(c.licenseExpiry).toLocaleDateString('es-MX') : '',
                     Estado: c.status,
                   })))
                 }}
                 variant="outline"
                 size="sm"
-                className="h-9 gap-1.5 border-teal-200 text-teal-700 hover:bg-teal-50 dark:border-teal-800 dark:text-teal-300 dark:hover:bg-teal-950/30"
+                className="h-9 gap-1.5 border-orange-500/40 bg-zinc-900 text-orange-200 hover:bg-zinc-800"
               >
                 <Printer className="w-4 h-4" />
                 Imprimir
               </Button>
-              <Button onClick={() => setShowAdd(true)} className="h-9 bg-teal-600 hover:bg-teal-700 gap-1.5 group">
+              <Button onClick={() => setShowAdd(true)} className="h-9 bg-orange-600 hover:bg-orange-500 text-zinc-950 font-semibold gap-1.5 group">
                 <UserPlus className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />
                 Agregar Tripulante
               </Button>
@@ -348,21 +379,21 @@ export function Crew() {
         </div>
 
         {/* Filter Bar */}
-        <Card className="overflow-hidden border-0 shadow-sm">
+        <Card className={`overflow-hidden ${SURFACE_CARD}`}>
           <CardContent className="p-0">
-            <div className="bg-gradient-to-r from-teal-50/80 via-white to-cyan-50/80 dark:from-teal-950/30 dark:via-background dark:to-cyan-950/30 p-4">
+            <div className="bg-gradient-to-r from-zinc-950 via-zinc-900 to-black p-4">
               <div className="flex flex-wrap items-center gap-3">
                 <div className="relative flex-1 min-w-[200px]">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-orange-300/80" />
                   <Input
                     placeholder="Buscar por nombre o licencia..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    className="pl-9 h-9 bg-white/60 dark:bg-background/60 backdrop-blur-sm"
+                    className="pl-9 h-9 border-orange-400/30 bg-zinc-900/90 text-zinc-100 placeholder:text-zinc-500"
                   />
                 </div>
                 <Select value={roleFilter} onValueChange={setRoleFilter}>
-                  <SelectTrigger className="w-[160px] h-9 bg-white/60 dark:bg-background/60 backdrop-blur-sm">
+                  <SelectTrigger className="w-[160px] h-9 border-orange-400/30 bg-zinc-900/90 text-zinc-100">
                     <SelectValue placeholder="Rol" />
                   </SelectTrigger>
                   <SelectContent>
@@ -371,7 +402,7 @@ export function Crew() {
                   </SelectContent>
                 </Select>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-[170px] h-9 bg-white/60 dark:bg-background/60 backdrop-blur-sm">
+                  <SelectTrigger className="w-[170px] h-9 border-orange-400/30 bg-zinc-900/90 text-zinc-100">
                     <SelectValue placeholder="Estado" />
                   </SelectTrigger>
                   <SelectContent>
@@ -380,7 +411,7 @@ export function Crew() {
                   </SelectContent>
                 </Select>
                 <Select value={nationalityFilter} onValueChange={setNationalityFilter}>
-                  <SelectTrigger className="w-[170px] h-9 bg-white/60 dark:bg-background/60 backdrop-blur-sm">
+                  <SelectTrigger className="w-[170px] h-9 border-orange-400/30 bg-zinc-900/90 text-zinc-100">
                     <SelectValue placeholder="Nacionalidad" />
                   </SelectTrigger>
                   <SelectContent>
@@ -389,7 +420,7 @@ export function Crew() {
                   </SelectContent>
                 </Select>
                 {activeFilterCount > 0 && (
-                  <Badge variant="secondary" className="h-6 px-2 text-[10px] bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300 border-teal-200 dark:border-teal-800">
+                  <Badge variant="secondary" className="h-6 px-2 text-[10px] bg-orange-500/20 text-orange-200 border-orange-500/40">
                     {activeFilterCount} filtro{activeFilterCount > 1 ? 's' : ''}
                   </Badge>
                 )}
@@ -399,283 +430,203 @@ export function Crew() {
         </Card>
 
         {/* Main Table */}
-        <Card className="overflow-hidden border-0 shadow-sm">
+        <Card className={`overflow-hidden ${SURFACE_CARD}`}>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base font-semibold">Tripulación ({filteredCrew.length})</CardTitle>
+              <CardTitle className="text-base font-semibold text-orange-200">Tripulación ({filteredCrew.length})</CardTitle>
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            <ScrollArea className="max-h-[calc(100vh-360px)]">
+            <div className="w-full overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-muted/30 hover:bg-muted/30">
+                  <TableRow className="bg-zinc-900/90 hover:bg-zinc-900/90">
                     <TableHead className="w-8" />
-                    <TableHead className="text-xs font-semibold">Nombre</TableHead>
-                    <TableHead className="text-xs font-semibold">Licencia</TableHead>
-                    <TableHead className="text-xs font-semibold">Rol</TableHead>
-                    <TableHead className="text-xs font-semibold">Nacionalidad</TableHead>
-                    <TableHead className="text-xs font-semibold">Empresa</TableHead>
-                    <TableHead className="text-xs font-semibold">Licencia Vencimiento</TableHead>
-                    <TableHead className="text-xs font-semibold">Estado</TableHead>
-                    <TableHead className="text-xs font-semibold text-center">Acciones</TableHead>
+                    <TableHead className="text-xs font-semibold text-orange-200">Nombre</TableHead>
+                    <TableHead className="text-xs font-semibold text-orange-200">Licencia</TableHead>
+                    <TableHead className="text-xs font-semibold text-orange-200">Rol</TableHead>
+                    <TableHead className="text-xs font-semibold text-orange-200">Nacionalidad</TableHead>
+                    <TableHead className="text-xs font-semibold text-orange-200">Empresa</TableHead>
+                    <TableHead className="text-xs font-semibold text-orange-200">Licencia Vencimiento</TableHead>
+                    <TableHead className="text-xs font-semibold text-orange-200">Estado</TableHead>
+                    <TableHead className="text-xs font-semibold text-center text-orange-200">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  <AnimatePresence>
-                    {filteredCrew.map((c, rowIndex) => {
-                      const licenseStatus = getLicenseStatus(c.licenseExpiry)
-                      const isExpanded = expandedRows.has(c.id)
-                      const isBlocked = licenseStatus.status === 'expired' || licenseStatus.status === 'expiring'
-
-                      // Row background for license warnings
-                      let rowBg = rowIndex % 2 === 1 ? 'bg-muted/20' : ''
-                      if (licenseStatus.status === 'expired') rowBg = 'bg-red-50/60 dark:bg-red-950/20'
-                      else if (licenseStatus.status === 'expiring') rowBg = 'bg-amber-50/60 dark:bg-amber-950/20'
-
-                      return (
-                        <motion.tr
-                          key={c.id}
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          transition={{ delay: rowIndex * 0.02 }}
-                          className={`${rowBg} hover:bg-teal-50/50 dark:hover:bg-teal-950/20 transition-all cursor-pointer border-l-4 ${licenseStatus.status === 'expired' ? 'border-l-red-500' : licenseStatus.status === 'expiring' ? 'border-l-amber-500' : 'border-l-transparent hover:border-l-teal-500'}`}
-                          onClick={() => toggleRow(c.id)}
-                        >
-                          <TableCell className="w-8 py-2">
-                            <motion.div animate={{ rotate: isExpanded ? 90 : 0 }} transition={{ duration: 0.2 }}>
-                              <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                            </motion.div>
-                          </TableCell>
+                  {filteredCrew.map((c) => {
+                    const isExpanded = expandedRows.has(c.id)
+                    const crewVessels = Array.from(
+                      new Set(
+                        (c.assignments || [])
+                          .map((a) => a.shipment?.vessel?.name)
+                          .filter((name): name is string => Boolean(name))
+                      )
+                    )
+                    return (
+                      <React.Fragment key={c.id}>
+                        <TableRow className={`border-orange-500/10 text-zinc-100 hover:bg-zinc-900/40 ${ROLE_ROW_ACCENT[c.role] || 'border-l-2 border-l-orange-500/30'}`}>
                           <TableCell className="py-2">
                             <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 rounded-full bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center text-sm font-semibold text-teal-700 dark:text-teal-300">
-                                {c.fullName.charAt(0)}
+                              <div className="flex h-7 w-7 items-center justify-center rounded-full border border-orange-400/40 bg-orange-500/20 text-[11px] font-bold text-orange-200">
+                                {c.fullName.charAt(0).toUpperCase()}
                               </div>
                               <div>
-                                <p className="text-sm font-medium leading-tight">{c.fullName}</p>
-                                {c.identityDoc && (
-                                  <p className="text-[10px] text-muted-foreground">{c.identityDocType}: {c.identityDoc}</p>
-                                )}
+                                <p className="font-semibold text-zinc-100 leading-none">{c.fullName}</p>
+                                <p className="text-[10px] uppercase tracking-wide text-orange-300/80">Tripulante</p>
                               </div>
                             </div>
                           </TableCell>
+                          <TableCell className="py-2">{c.licenseId}</TableCell>
                           <TableCell className="py-2">
-                            <span className="text-xs font-mono font-medium text-teal-600 dark:text-teal-400">{c.licenseId}</span>
-                          </TableCell>
-                          <TableCell className="py-2">
-                            <Badge variant="secondary" className={`text-[10px] ${ROLE_COLORS[c.role] || ''}`}>
-                              {ROLE_ICONS[c.role] || ''} {c.role}
+                            <Badge variant="outline" className={`gap-1 text-[11px] font-medium ${ROLE_BADGE_DARK[c.role] || 'border-orange-400/45 bg-orange-500/15 text-orange-200'}`}>
+                              <span>{ROLE_ICONS[c.role] || '👤'}</span>
+                              {c.role}
                             </Badge>
                           </TableCell>
-                          <TableCell className="py-2">
-                            <span className="text-xs">{getFlagEmoji(c.nationality)} {c.nationality}</span>
-                          </TableCell>
-                          <TableCell className="py-2">
-                            <span className="text-xs text-muted-foreground">{c.carrierCompany || '—'}</span>
-                          </TableCell>
-                          <TableCell className="py-2">
-                            <div className="flex flex-col gap-1">
-                              <span className="text-xs">
-                                {c.licenseExpiry ? new Date(c.licenseExpiry).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
-                              </span>
-                              {licenseStatus.status === 'expired' && (
-                                <Badge variant="secondary" className="text-[9px] w-fit bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-800">
-                                  <XCircle className="w-2.5 h-2.5 mr-1" />Vencida ({Math.abs(licenseStatus.daysLeft!)}d)
-                                </Badge>
-                              )}
-                              {licenseStatus.status === 'expiring' && (
-                                <Badge variant="secondary" className="text-[9px] w-fit bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 dark:border-amber-800">
-                                  <AlertTriangle className="w-2.5 h-2.5 mr-1" />{licenseStatus.daysLeft}d restantes
-                                </Badge>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell className="py-2">
-                            <div className="flex items-center gap-1.5">
-                              <Badge variant="secondary" className={`text-[10px] ${STATUS_COLORS[c.status] || ''}`}>
-                                {c.status}
-                              </Badge>
-                              {isBlocked && (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span className="inline-flex">
-                                      <Ban className="w-3.5 h-3.5 text-red-500 animate-pulse" />
-                                    </span>
-                                  </TooltipTrigger>
-                                  <TooltipContent className="bg-red-600 text-white border-red-700 shadow-xl max-w-[220px]">
-                                    <p className="font-semibold text-xs">No asignable a nuevos envíos</p>
-                                    <p className="text-[10px] text-red-100 mt-0.5">
-                                      {licenseStatus.status === 'expired' ? 'La licencia está vencida' : 'La licencia vence en menos de 30 días'}
-                                    </p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              )}
-                            </div>
-                          </TableCell>
+                          <TableCell className="py-2">{c.nationality}</TableCell>
+                          <TableCell className="py-2">{c.carrierCompany || '—'}</TableCell>
+                          <TableCell className="py-2">{c.licenseExpiry || '—'}</TableCell>
+                          <TableCell className="py-2">{c.status}</TableCell>
                           <TableCell className="py-2 text-center">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 w-7 p-0 text-teal-600 hover:text-teal-700 hover:bg-teal-50 dark:text-teal-400 dark:hover:bg-teal-950/30"
-                              onClick={(e) => { e.stopPropagation(); setSelectedCrew(c); setShowDetail(true) }}
-                            >
-                              <Eye className="w-4 h-4" />
-                            </Button>
+                            <div className="flex items-center justify-center gap-1">
+                              <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setSelectedCrew(c); setShowDetail(true) }}>
+                                <Eye className="w-4 h-4" />
+                              </Button>
+                              <Button variant="ghost" size="sm" onClick={() => toggleRow(c.id)}>
+                                <ChevronDown className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                              </Button>
+                            </div>
                           </TableCell>
-                        </motion.tr>
-                      )
-                    })}
-                  </AnimatePresence>
-                </TableBody>
-              </Table>
-            </ScrollArea>
+                        </TableRow>
 
-            {/* Expanded Row Content */}
-            <AnimatePresence>
-              {expandedRows.size > 0 && (
-                <div className="border-t">
-                  {filteredCrew.filter(c => expandedRows.has(c.id)).map((c) => {
-                    const certs = parseCertifications(c.certifications)
-                    const licenseStatus = getLicenseStatus(c.licenseExpiry)
-                    const isBlocked = licenseStatus.status === 'expired' || licenseStatus.status === 'expiring'
-
-                    return (
-                      <motion.div
-                        key={`expanded-${c.id}`}
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="overflow-hidden"
-                      >
-                        <div className="p-4 bg-muted/20 border-b">
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                            {/* Certifications */}
-                            <div className="space-y-2">
-                              <p className="text-xs font-semibold flex items-center gap-1.5">
-                                <Award className="w-3.5 h-3.5 text-teal-500" />
-                                Certificaciones
-                              </p>
-                              {certs.length === 0 ? (
-                                <p className="text-[11px] text-muted-foreground">Sin certificaciones registradas</p>
-                              ) : (
-                                <div className="space-y-1">
-                                  {certs.map((cert, idx) => {
-                                    const certStatus = getLicenseStatus(cert.expiryDate)
-                                    return (
-                                      <div key={idx} className="flex items-center justify-between p-1.5 bg-background/60 rounded-md text-[11px]">
-                                        <div className="flex items-center gap-1.5">
-                                          {certStatus.status === 'expired' ? (
-                                            <XCircle className="w-3 h-3 text-red-500" />
-                                          ) : certStatus.status === 'expiring' ? (
-                                            <AlertTriangle className="w-3 h-3 text-amber-500" />
-                                          ) : (
-                                            <FileCheck className="w-3 h-3 text-emerald-500" />
-                                          )}
-                                          <span className="font-medium">{cert.name}</span>
-                                        </div>
-                                        <span className={`text-[10px] ${certStatus.status === 'expired' ? 'text-red-500' : certStatus.status === 'expiring' ? 'text-amber-500' : 'text-muted-foreground'}`}>
-                                          {cert.expiryDate ? new Date(cert.expiryDate).toLocaleDateString('es-MX', { month: 'short', year: 'numeric' }) : '—'}
-                                        </span>
-                                      </div>
-                                    )
-                                  })}
+                        {isExpanded && (
+                          <TableRow>
+                            <TableCell colSpan={9} className="p-3">
+                              <div className={`space-y-3 p-3 ${SURFACE_SOFT}`}>
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <div className="inline-flex items-center gap-2 rounded-md border border-orange-500/30 bg-zinc-950/70 px-2.5 py-1">
+                                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-orange-500/25 text-xs font-bold text-orange-200">
+                                        {c.fullName.charAt(0).toUpperCase()}
+                                      </span>
+                                      <span className="font-semibold text-orange-100">{c.fullName}</span>
+                                    </div>
+                                    <div className="text-xs text-zinc-400">Licencia: {c.licenseId}</div>
+                                    <div className="mt-1 text-[11px] text-orange-300/90">
+                                      Embarcación:{' '}
+                                      <span className="font-semibold text-orange-200">
+                                        {crewVessels.length > 0 ? crewVessels.join(', ') : 'Sin embarcación asignada'}
+                                      </span>
+                                    </div>
+                                    <Badge variant="outline" className={`mt-1 h-5 gap-1 text-[10px] ${ROLE_BADGE_DARK[c.role] || 'border-orange-400/45 bg-orange-500/15 text-orange-200'}`}>
+                                      <span>{ROLE_ICONS[c.role] || '👤'}</span>
+                                      {c.role}
+                                    </Badge>
+                                  </div>
+                                  <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
+                                    <input id={`attachments-${c.id}`} type="file" multiple className="hidden" onChange={async (e) => {
+                                      const input = e.currentTarget
+                                      const files = input.files ? Array.from(input.files) : []
+                                      if (!files.length) return
+                                      const toBase64 = (file: File) => new Promise<string>((resolve, reject) => {
+                                        const reader = new FileReader()
+                                        reader.onload = () => { const res = reader.result as string; resolve(res.split(',')[1] || '') }
+                                        reader.onerror = reject
+                                        reader.readAsDataURL(file)
+                                      })
+                                      const attachments = await Promise.all(files.map(async (f) => ({ filename: f.name, contentBase64: await toBase64(f), name: f.name, type: f.type })))
+                                      try {
+                                        const res = await fetch(`/api/crew/${c.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ attachments }) })
+                                        if (!res.ok) {
+                                          const j = (await res.json().catch(() => ({}))) as { error?: string }
+                                          throw new Error(j.error || `No se pudo subir (${res.status})`)
+                                        }
+                                        const updated = await res.json()
+                                        const raw = await fetch('/api/crew').then(r => r.json())
+                                        const normalize = (d: any): CrewMember[] => {
+                                          if (Array.isArray(d)) return d
+                                          if (d && Array.isArray(d.crew)) return d.crew
+                                          if (d && Array.isArray(d.data)) return d.data
+                                          return []
+                                        }
+                                        setCrew(normalize(raw))
+                                        setSelectedCrew(updated)
+                                        toast.success('Documentos subidos')
+                                      } catch (err) {
+                                        console.error(err)
+                                        toast.error(err instanceof Error ? err.message : 'Error al subir documentos')
+                                      } finally {
+                                        input.value = ''
+                                      }
+                                    }} />
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="ghost"
+                                      className="gap-1.5 text-orange-200 hover:bg-zinc-800"
+                                      onClick={async () => {
+                                        const raw = await fetch('/api/crew').then(r => r.json())
+                                        const normalize = (d: any): CrewMember[] => {
+                                          if (Array.isArray(d)) return d
+                                          if (d && Array.isArray(d.crew)) return d.crew
+                                          if (d && Array.isArray(d.data)) return d.data
+                                          return []
+                                        }
+                                        setCrew(normalize(raw))
+                                        toast.success('Lista actualizada')
+                                      }}
+                                    >
+                                      <RefreshCw className="w-3.5 h-3.5" />
+                                      Refrescar
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      className="gap-1.5 border-orange-400/35 bg-zinc-900 text-orange-200 hover:bg-zinc-800"
+                                      onClick={() => document.getElementById(`attachments-${c.id}`)?.click()}
+                                    >
+                                      <Paperclip className="w-3.5 h-3.5" />
+                                      Adjuntar documentos
+                                    </Button>
+                                  </div>
                                 </div>
-                              )}
-                            </div>
 
-                            {/* Emergency Contact */}
-                            <div className="space-y-2">
-                              <p className="text-xs font-semibold flex items-center gap-1.5">
-                                <Phone className="w-3.5 h-3.5 text-red-500" />
-                                Contacto de Emergencia
-                              </p>
-                              <div className="p-2 bg-background/60 rounded-md">
-                                <p className="text-sm">{c.emergencyContact || '—'}</p>
-                              </div>
-                            </div>
-
-                            {/* Contact Info */}
-                            <div className="space-y-2">
-                              <p className="text-xs font-semibold flex items-center gap-1.5">
-                                <Mail className="w-3.5 h-3.5 text-teal-500" />
-                                Contacto
-                              </p>
-                              <div className="space-y-1">
-                                {c.email && (
-                                  <div className="flex items-center gap-1.5 text-[11px] p-1.5 bg-background/60 rounded-md">
-                                    <Mail className="w-3 h-3 text-muted-foreground" />
-                                    <span>{c.email}</span>
-                                  </div>
-                                )}
-                                {c.phone && (
-                                  <div className="flex items-center gap-1.5 text-[11px] p-1.5 bg-background/60 rounded-md">
-                                    <Phone className="w-3 h-3 text-muted-foreground" />
-                                    <span>{c.phone}</span>
-                                  </div>
-                                )}
-                                {!c.email && !c.phone && (
-                                  <p className="text-[11px] text-muted-foreground">Sin información de contacto</p>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Assigned Shipments */}
-                            <div className="space-y-2">
-                              <p className="text-xs font-semibold flex items-center gap-1.5">
-                                <Ship className="w-3.5 h-3.5 text-teal-500" />
-                                Envíos Asignados
-                                {c.assignments.length > 0 && (
-                                  <Badge variant="secondary" className="text-[9px] h-4 ml-1">{c.assignments.length}</Badge>
-                                )}
-                              </p>
-                              {c.assignments.length === 0 ? (
-                                <p className="text-[11px] text-muted-foreground">Sin envíos asignados</p>
-                              ) : (
-                                <ScrollArea className="max-h-24">
-                                  <div className="space-y-1">
-                                    {c.assignments.map((a) => (
-                                      <div key={a.id} className="flex items-center justify-between p-1.5 bg-background/60 rounded-md text-[11px]">
-                                        <span className="font-mono font-medium text-teal-600 dark:text-teal-400">{a.shipment.reference}</span>
-                                        <Badge variant="outline" className="text-[9px] h-4 px-1">{a.role}</Badge>
+                                <div>
+                                  <p className="text-sm text-muted-foreground">Documentos</p>
+                                  <div className="mt-2 space-y-2">
+                                    {(c as any).documents && (c as any).documents.length > 0 ? (c as any).documents.map((doc: any) => (
+                                      <div key={doc.id} className="flex items-center justify-between p-2 bg-zinc-950/70 border border-orange-500/20 rounded">
+                                        <div>
+                                          <div className="font-medium text-sm">{doc.name}</div>
+                                          <div className="text-[11px] text-muted-foreground">{doc.type} • {doc.fileSize || '—'}</div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          {doc.fileUrl && <a href={doc.fileUrl} download className="text-xs px-2 py-1 rounded bg-orange-500/20 text-orange-200 hover:bg-orange-500/30">Descargar</a>}
+                                        </div>
                                       </div>
-                                    ))}
+                                    )) : (
+                                      <div className="text-sm text-muted-foreground">Sin documentos</div>
+                                    )}
                                   </div>
-                                </ScrollArea>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Assignment Block Warning */}
-                          {isBlocked && (
-                            <div className="mt-3 p-2.5 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-2">
-                              <AlertOctagon className="w-4 h-4 text-red-500 flex-shrink-0" />
-                              <div>
-                                <p className="text-xs font-semibold text-red-700 dark:text-red-400">
-                                  No puede ser asignado a nuevos envíos
-                                </p>
-                                <p className="text-[10px] text-red-600 dark:text-red-300">
-                                  {licenseStatus.status === 'expired'
-                                    ? `Licencia vencida hace ${Math.abs(licenseStatus.daysLeft!)} días`
-                                    : `Licencia vence en ${licenseStatus.daysLeft} días`}
-                                </p>
+                                </div>
                               </div>
-                            </div>
-                          )}
-                        </div>
-                      </motion.div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </React.Fragment>
                     )
                   })}
-                </div>
-              )}
-            </AnimatePresence>
+                </TableBody>
+              </Table>
+            </div>
+
           </CardContent>
         </Card>
 
         {/* Crew Detail Dialog */}
         <Dialog open={showDetail} onOpenChange={setShowDetail}>
-          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto p-0">
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto p-0 border border-orange-500/35 bg-zinc-950 text-zinc-100">
             {selectedCrew && (() => {
               const licenseStatus = getLicenseStatus(selectedCrew.licenseExpiry)
               const certs = parseCertifications(selectedCrew.certifications)
@@ -684,20 +635,22 @@ export function Crew() {
               return (
                 <>
                   {/* Header */}
-                  <div className="bg-gradient-to-r from-teal-600 to-teal-500 p-6 rounded-t-lg relative overflow-hidden">
+                  <div className="bg-gradient-to-r from-black via-zinc-900 to-zinc-800 p-6 rounded-t-lg relative overflow-hidden border-b border-orange-500/30">
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_50%,rgba(255,255,255,0.1),transparent)] pointer-events-none" />
                     <div className="flex items-center gap-4 relative z-10">
                       <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center text-2xl font-bold text-white">
                         {selectedCrew.fullName.charAt(0)}
                       </div>
                       <div className="flex-1">
-                        <DialogTitle className="text-white text-lg font-bold">{selectedCrew.fullName}</DialogTitle>
-                        <p className="text-teal-100 text-xs font-mono mt-0.5">Licencia: {selectedCrew.licenseId}</p>
+                        <DialogTitle className="text-lg font-bold bg-gradient-to-r from-orange-200 via-orange-300 to-orange-500 bg-clip-text text-transparent">
+                          {selectedCrew.fullName}
+                        </DialogTitle>
+                        <p className="text-orange-200 text-xs font-mono mt-0.5">Licencia: {selectedCrew.licenseId}</p>
                         <div className="flex items-center gap-2 mt-1.5">
                           <Badge className={`text-[10px] ${STATUS_COLORS[selectedCrew.status]} border-0`}>
                             {selectedCrew.status}
                           </Badge>
-                          <Badge variant="secondary" className={`text-[10px] ${ROLE_COLORS[selectedCrew.role] || ''} border-0`}>
+                          <Badge variant="outline" className={`text-[10px] border ${ROLE_BADGE_DARK[selectedCrew.role] || 'border-orange-400/45 bg-orange-500/15 text-orange-200'}`}>
                             {ROLE_ICONS[selectedCrew.role] || ''} {selectedCrew.role}
                           </Badge>
                         </div>
@@ -714,34 +667,34 @@ export function Crew() {
                   <div className="p-6 space-y-5">
                     {/* Info Grid */}
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      <div className="p-3 rounded-lg bg-muted/50">
+                      <div className="p-3 rounded-lg border border-orange-500/15 bg-zinc-900/70">
                         <p className="text-[10px] text-muted-foreground mb-1 flex items-center gap-1"><Globe2 className="w-3 h-3" /> Nacionalidad</p>
                         <p className="text-sm font-semibold">{getFlagEmoji(selectedCrew.nationality)} {selectedCrew.nationality}</p>
                       </div>
-                      <div className="p-3 rounded-lg bg-muted/50">
+                      <div className="p-3 rounded-lg border border-orange-500/15 bg-zinc-900/70">
                         <p className="text-[10px] text-muted-foreground mb-1 flex items-center gap-1"><Building2 className="w-3 h-3" /> Empresa</p>
                         <p className="text-sm font-semibold">{selectedCrew.carrierCompany || '—'}</p>
                       </div>
-                      <div className="p-3 rounded-lg bg-muted/50">
+                      <div className="p-3 rounded-lg border border-orange-500/15 bg-zinc-900/70">
                         <p className="text-[10px] text-muted-foreground mb-1 flex items-center gap-1"><Calendar className="w-3 h-3" /> Licencia Vence</p>
                         <p className={`text-sm font-semibold ${licenseStatus.status === 'expired' ? 'text-red-600 dark:text-red-400' : licenseStatus.status === 'expiring' ? 'text-amber-600 dark:text-amber-400' : ''}`}>
                           {selectedCrew.licenseExpiry ? new Date(selectedCrew.licenseExpiry).toLocaleDateString('es-MX') : '—'}
                         </p>
                       </div>
                       {selectedCrew.email && (
-                        <div className="p-3 rounded-lg bg-muted/50">
+                        <div className="p-3 rounded-lg border border-orange-500/15 bg-zinc-900/70">
                           <p className="text-[10px] text-muted-foreground mb-1 flex items-center gap-1"><Mail className="w-3 h-3" /> Email</p>
                           <p className="text-sm font-semibold break-all">{selectedCrew.email}</p>
                         </div>
                       )}
                       {selectedCrew.phone && (
-                        <div className="p-3 rounded-lg bg-muted/50">
+                        <div className="p-3 rounded-lg border border-orange-500/15 bg-zinc-900/70">
                           <p className="text-[10px] text-muted-foreground mb-1 flex items-center gap-1"><Phone className="w-3 h-3" /> Teléfono</p>
                           <p className="text-sm font-semibold">{selectedCrew.phone}</p>
                         </div>
                       )}
                       {selectedCrew.emergencyContact && (
-                        <div className="p-3 rounded-lg bg-muted/50">
+                        <div className="p-3 rounded-lg border border-orange-500/15 bg-zinc-900/70">
                           <p className="text-[10px] text-muted-foreground mb-1 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Emergencia</p>
                           <p className="text-sm font-semibold">{selectedCrew.emergencyContact}</p>
                         </div>
@@ -753,7 +706,7 @@ export function Crew() {
                       {/* Documents Upload */}
                       <div>
                         <p className="text-sm font-semibold mb-2 flex items-center gap-2">
-                          <FileCheck className="w-4 h-4 text-teal-500" />
+                          <FileCheck className="w-4 h-4 text-orange-400" />
                           Documentos del Tripulante
                         </p>
                         <div className="flex flex-col gap-2">
@@ -770,22 +723,39 @@ export function Crew() {
                               const attachments = await Promise.all(files.map(async (f) => ({ filename: f.name, contentBase64: await toBase64(f), name: f.name, type: f.type })))
                               try {
                                 const res = await fetch(`/api/crew/${selectedCrew!.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ attachments }) })
-                                if (!res.ok) throw new Error('Upload failed')
+                                if (!res.ok) {
+                                  const j = (await res.json().catch(() => ({}))) as { error?: string }
+                                  throw new Error(j.error || `No se pudo subir (${res.status})`)
+                                }
                                 const updated = await res.json()
                                 // refresh crew list and selected
-                                const list = await fetch('/api/crew').then(r => r.json())
+                                const raw = await fetch('/api/crew').then(r => r.json())
+                                const normalize = (d: any): CrewMember[] => {
+                                  if (Array.isArray(d)) return d
+                                  if (d && Array.isArray(d.crew)) return d.crew
+                                  if (d && Array.isArray(d.data)) return d.data
+                                  return []
+                                }
+                                const list = normalize(raw)
                                 setCrew(list)
                                 setSelectedCrew(updated)
                                 toast.success('Documentos subidos')
                               } catch (err) {
                                 console.error(err)
-                                toast.error('Error al subir documentos')
+                                toast.error(err instanceof Error ? err.message : 'Error al subir documentos')
                               }
                             }} />
-                            <Button size="sm" variant="outline" onClick={() => document.getElementById('crew-attachments')?.click()}>Adjuntar CV / Contrato</Button>
-                            <Button size="sm" onClick={async () => {
+                            <Button size="sm" variant="outline" className="border-orange-400/35 bg-zinc-900 text-orange-200 hover:bg-zinc-800" onClick={() => document.getElementById('crew-attachments')?.click()}>Adjuntar CV / Contrato</Button>
+                            <Button size="sm" className="bg-orange-600 hover:bg-orange-500 text-zinc-950" onClick={async () => {
                               // refresh documents
-                              const list = await fetch('/api/crew').then(r => r.json())
+                              const raw = await fetch('/api/crew').then(r => r.json())
+                              const normalize = (d: any): CrewMember[] => {
+                                if (Array.isArray(d)) return d
+                                if (d && Array.isArray(d.crew)) return d.crew
+                                if (d && Array.isArray(d.data)) return d.data
+                                return []
+                              }
+                              const list = normalize(raw)
                               setCrew(list)
                               const fresh = list.find((x: any) => x.id === selectedCrew?.id)
                               setSelectedCrew(fresh)
@@ -794,13 +764,13 @@ export function Crew() {
                           </div>
                           <div className="space-y-1">
                             {(selectedCrew.documents && selectedCrew.documents.length > 0) ? selectedCrew.documents.map((doc: any) => (
-                              <div key={doc.id} className="flex items-center justify-between p-2 bg-background/60 rounded">
+                              <div key={doc.id} className="flex items-center justify-between p-2 bg-zinc-900/60 border border-orange-500/20 rounded">
                                 <div>
                                   <div className="font-medium text-sm">{doc.name}</div>
                                   <div className="text-[11px] text-muted-foreground">{doc.type} • {doc.fileSize || '—'}</div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  {doc.fileUrl && <a href={doc.fileUrl} download className="text-xs px-2 py-1 rounded bg-muted hover:bg-muted/80">Descargar</a>}
+                                  {doc.fileUrl && <a href={doc.fileUrl} download className="text-xs px-2 py-1 rounded bg-orange-500/20 text-orange-200 hover:bg-orange-500/30">Descargar</a>}
                                 </div>
                               </div>
                             )) : (
@@ -813,7 +783,7 @@ export function Crew() {
                     {/* License Status Progress */}
                     <div>
                       <p className="text-sm font-semibold mb-2 flex items-center gap-2">
-                        <Shield className="w-4 h-4 text-teal-500" />
+                        <Shield className="w-4 h-4 text-orange-400" />
                         Estado de Licencia
                       </p>
                       <div className="space-y-2">
@@ -841,7 +811,7 @@ export function Crew() {
                     {/* Certifications */}
                     <div>
                       <p className="text-sm font-semibold mb-2 flex items-center gap-2">
-                        <Award className="w-4 h-4 text-teal-500" />
+                        <Award className="w-4 h-4 text-orange-400" />
                         Certificaciones
                         {certs.length > 0 && (
                           <Badge variant="secondary" className="text-[10px] h-5 ml-1">{certs.length}</Badge>
@@ -854,7 +824,7 @@ export function Crew() {
                           {certs.map((cert, idx) => {
                             const certStatus = getLicenseStatus(cert.expiryDate)
                             return (
-                              <div key={idx} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                              <div key={idx} className="flex items-center justify-between p-3 bg-zinc-900/60 border border-orange-500/15 rounded-lg">
                                 <div className="flex items-center gap-3">
                                   {certStatus.status === 'expired' ? (
                                     <XCircle className="w-4 h-4 text-red-500" />
@@ -890,7 +860,7 @@ export function Crew() {
                     {/* Assigned Shipments */}
                     <div>
                       <p className="text-sm font-semibold mb-2 flex items-center gap-2">
-                        <Ship className="w-4 h-4 text-teal-500" />
+                        <Ship className="w-4 h-4 text-orange-400" />
                         Historial de Envíos
                         {selectedCrew.assignments.length > 0 && (
                           <Badge variant="secondary" className="text-[10px] h-5 ml-1">{selectedCrew.assignments.length}</Badge>
@@ -902,12 +872,15 @@ export function Crew() {
                         <ScrollArea className="max-h-48">
                           <div className="space-y-2">
                             {selectedCrew.assignments.map((a) => (
-                              <div key={a.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                              <div key={a.id} className="flex items-center justify-between p-3 bg-zinc-900/60 border border-orange-500/15 rounded-lg">
                                 <div className="flex items-center gap-3">
-                                  <Ship className="w-4 h-4 text-teal-500" />
+                                  <Ship className="w-4 h-4 text-orange-400" />
                                   <div>
-                                    <p className="text-sm font-mono font-medium text-teal-600 dark:text-teal-400">{a.shipment.reference}</p>
+                                    <p className="text-sm font-mono font-medium text-orange-300">{a.shipment.reference}</p>
                                     <p className="text-[10px] text-muted-foreground">{a.shipment.origin} → {a.shipment.destination}</p>
+                                    <p className="text-[10px] text-orange-300/80">
+                                      Embarcación: {a.shipment.vessel?.name || 'No definida'}
+                                    </p>
                                   </div>
                                 </div>
                                 <div className="text-right">
@@ -932,22 +905,22 @@ export function Crew() {
 
         {/* Add Crew Dialog */}
         <Dialog open={showAdd} onOpenChange={setShowAdd}>
-          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto p-0">
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto p-0 border border-orange-500/35 bg-zinc-950 text-zinc-100">
             {/* Header */}
-            <div className="bg-gradient-to-r from-teal-600 to-teal-500 p-5 rounded-t-lg relative overflow-hidden">
+            <div className="bg-gradient-to-r from-black via-zinc-900 to-zinc-800 p-5 rounded-t-lg relative overflow-hidden border-b border-orange-500/30">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_50%,rgba(255,255,255,0.1),transparent)] pointer-events-none" />
               <DialogTitle className="text-white text-lg font-bold flex items-center gap-2 relative z-10">
                 <UserPlus className="w-5 h-5" />
                 Nuevo Tripulante
               </DialogTitle>
-              <p className="text-teal-100 text-xs mt-1 relative z-10">Complete los datos para registrar un nuevo miembro de la tripulación</p>
+              <p className="text-orange-200 text-xs mt-1 relative z-10">Complete los datos para registrar un nuevo miembro de la tripulación</p>
             </div>
 
             <form onSubmit={handleAddCrew} className="p-5 space-y-5">
               {/* Información Personal */}
               <div>
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
-                  <Users className="w-3.5 h-3.5 text-teal-500" />
+                  <Users className="w-3.5 h-3.5 text-orange-400" />
                   Información Personal
                 </p>
                 <div className="grid grid-cols-2 gap-3">
@@ -980,7 +953,7 @@ export function Crew() {
               {/* Información de Contacto */}
               <div>
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
-                  <Phone className="w-3.5 h-3.5 text-teal-500" />
+                  <Phone className="w-3.5 h-3.5 text-orange-400" />
                   Información de Contacto
                 </p>
                 <div className="grid grid-cols-2 gap-3">
@@ -1008,7 +981,7 @@ export function Crew() {
               {/* Licencia */}
               <div>
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
-                  <IdCard className="w-3.5 h-3.5 text-teal-500" />
+                  <IdCard className="w-3.5 h-3.5 text-orange-400" />
                   Información de Licencia
                 </p>
                 <div className="grid grid-cols-2 gap-3">
@@ -1024,7 +997,7 @@ export function Crew() {
               {/* Certificación */}
               <div>
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
-                  <Award className="w-3.5 h-3.5 text-teal-500" />
+                  <Award className="w-3.5 h-3.5 text-orange-400" />
                   Certificación Principal
                 </p>
                 <div className="grid grid-cols-3 gap-3">
@@ -1051,7 +1024,7 @@ export function Crew() {
                     setSelectedFiles(files)
                   }} />
                   <Button type="button" variant="outline" onClick={() => attachmentsRef.current?.click()}>Adjuntar documentos</Button>
-                  <Button type="submit" className="bg-teal-600 hover:bg-teal-700" disabled={addingCrew}>
+                  <Button type="submit" className="bg-orange-600 hover:bg-orange-500 text-zinc-950 font-semibold" disabled={addingCrew}>
                     {addingCrew ? 'Registrando...' : 'Registrar Tripulante'}
                   </Button>
                 </div>

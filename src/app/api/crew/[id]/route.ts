@@ -5,9 +5,12 @@ import path from 'path'
 
 export const runtime = 'nodejs'
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    const id = params.id
+    const { id } = await params
     const body = await request.json()
     const attachments = Array.isArray(body.attachments) ? body.attachments : []
     delete body.attachments
@@ -50,7 +53,27 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     }
 
     // return fresh crew
-    const crew = await db.crew.findUnique({ where: { id }, include: { assignments: { include: { shipment: { select: { reference: true, status: true, origin: true, destination: true } } } }, documents: { select: { id: true, name: true, fileUrl: true, uploadDate: true, type: true, fileSize: true } } } })
+    const crew = await db.crew.findUnique({
+      where: { id },
+      include: {
+        assignments: {
+          include: {
+            shipment: {
+              select: {
+                reference: true,
+                status: true,
+                origin: true,
+                destination: true,
+                vessel: { select: { name: true } }
+              }
+            }
+          }
+        },
+        documents: {
+          select: { id: true, name: true, fileUrl: true, uploadDate: true, type: true, fileSize: true }
+        }
+      }
+    })
     return NextResponse.json(crew)
   } catch (error) {
     console.error('Update crew error', error)
@@ -58,9 +81,12 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    const id = params.id
+    const { id } = await params
     await db.crew.delete({ where: { id } })
     return NextResponse.json({ success: true })
   } catch (error) {

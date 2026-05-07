@@ -1,519 +1,635 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useState, useMemo, useEffect } from 'react'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Progress } from '@/components/ui/progress'
 import {
-  Globe, Download, CheckCircle2, XCircle, Minus, Shield, FileText,
-  AlertTriangle, Info, Filter, ArrowUpDown, BookOpen, Scale
+  Ship, Truck, Anchor, Clock, DollarSign, ShieldCheck, 
+  Leaf, Zap, BarChart3, ArrowRight, CheckCircle2, 
+  AlertTriangle, Info, Star, Download, Search, 
+  MapPin, Calendar, HelpCircle, ChevronRight, 
+  Layers, Filter, MousePointer2, MoreHorizontal, TrendingDown, Globe, RefreshCw
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 
-// ─── Type definitions ───────────────────────────────────────────────
+// ─── Types ─────────────────────────────────────────────────────────
 
-interface CountryRequirement {
+interface ShippingOption {
   id: string
-  productCategory: string
-  country: string
-  requirementName: string
-  isMandatory: boolean
-  maxResidueLevel: string | null
-  localLanguageLabel: string | null
-  description: string | null
-  regulation: string | null
-  createdAt: string
-  updatedAt: string
+  carrier: {
+    name: string
+    logo: string
+    rating: number
+    reliability: number // %
+  }
+  route: {
+    origin: string
+    destination: string
+    transitTime: number // days
+    vessels: string[]
+  }
+  costs: {
+    freight: number
+    surcharges: number
+    handling: number
+    total: number
+  }
+  emissions: number // kg CO2
+  tags: ('Best Price' | 'Fastest' | 'Greenest' | 'Recommended')[]
+  inclusions: string[]
+  freeDays: number
+  // Advanced Metrics
+  riskProfile: {
+    weather: number // 1-10
+    congestion: number // 1-10
+    geopolitical: number // 1-10
+  }
+  priceTrend: 'up' | 'down' | 'stable'
+  historicalAvg: number
 }
 
-// ─── Constants ──────────────────────────────────────────────────────
+// ─── Mock Data ─────────────────────────────────────────────────────
 
-const PRODUCT_CATEGORIES = [
-  'Alimento agrícola',
-  'Producto forestal',
-  'Textil',
-  'Químico',
-  'Mineral',
-  'Maquinaria',
-  'Electrónica',
-] as const
+const MOCK_OPTIONS: ShippingOption[] = [
+  {
+    id: 'opt-1',
+    carrier: { name: 'Maersk Line', logo: 'M', rating: 4.8, reliability: 96 },
+    route: { origin: 'Shanghai (CNSHA)', destination: 'Valencia (ESVLC)', transitTime: 28, vessels: ['MAERSK HONAM', 'MAERSK ALTAIR'] },
+    costs: { freight: 2450, surcharges: 320, handling: 150, total: 2920 },
+    emissions: 850,
+    tags: ['Recommended', 'Fastest'],
+    inclusions: ['Teu Tracking', 'Customs Support', 'E-Doc Management'],
+    freeDays: 14,
+    riskProfile: { weather: 2, congestion: 4, geopolitical: 1 },
+    priceTrend: 'stable',
+    historicalAvg: 2850
+  },
+  {
+    id: 'opt-2',
+    carrier: { name: 'CMA CGM', logo: 'C', rating: 4.5, reliability: 92 },
+    route: { origin: 'Shanghai (CNSHA)', destination: 'Valencia (ESVLC)', transitTime: 34, vessels: ['CMA CGM MARCO POLO'] },
+    costs: { freight: 1980, surcharges: 280, handling: 120, total: 2380 },
+    emissions: 920,
+    tags: ['Best Price'],
+    inclusions: ['Standard Tracking', 'Port Handling'],
+    freeDays: 10,
+    riskProfile: { weather: 5, congestion: 7, geopolitical: 2 },
+    priceTrend: 'down',
+    historicalAvg: 2600
+  },
+  {
+    id: 'opt-3',
+    carrier: { name: 'MSC Shipping', logo: 'S', rating: 4.2, reliability: 88 },
+    route: { origin: 'Shanghai (CNSHA)', destination: 'Valencia (ESVLC)', transitTime: 32, vessels: ['MSC OSCAR'] },
+    costs: { freight: 2100, surcharges: 300, handling: 140, total: 2540 },
+    emissions: 980,
+    tags: [],
+    inclusions: ['Standard Tracking', 'Basic Support'],
+    freeDays: 12,
+    riskProfile: { weather: 3, congestion: 6, geopolitical: 2 },
+    priceTrend: 'up',
+    historicalAvg: 2400
+  },
+  {
+    id: 'opt-4',
+    carrier: { name: 'Evergreen', logo: 'E', rating: 4.6, reliability: 94 },
+    route: { origin: 'Shanghai (CNSHA)', destination: 'Valencia (ESVLC)', transitTime: 36, vessels: ['EVER GIVEN'] },
+    costs: { freight: 1850, surcharges: 250, handling: 110, total: 2210 },
+    emissions: 720,
+    tags: ['Greenest'],
+    inclusions: ['Eco-Fuel Option', 'Standard Tracking'],
+    freeDays: 14,
+    riskProfile: { weather: 4, congestion: 5, geopolitical: 1 },
+    priceTrend: 'stable',
+    historicalAvg: 2300
+  }
+]
 
-const ALL_COUNTRIES = [
-  'EE.UU.',
-  'Unión Europea',
-  'China',
-  'Japón',
-  'Brasil',
-  'Colombia',
-  'Canadá',
-  'Australia',
-] as const
+// ─── Helpers ───────────────────────────────────────────────────────
 
-const COUNTRY_FLAGS: Record<string, string> = {
-  'EE.UU.': '🇺🇸',
-  'Unión Europea': '🇪🇺',
-  'China': '🇨🇳',
-  'Japón': '🇯🇵',
-  'Brasil': '🇧🇷',
-  'Colombia': '🇨🇴',
-  'Canadá': '🇨🇦',
-  'Australia': '🇦🇺',
+function formatUSD(val: number) {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val)
 }
 
-const COUNTRY_SHORT: Record<string, string> = {
-  'EE.UU.': 'US',
-  'Unión Europea': 'UE',
-  'China': 'CN',
-  'Japón': 'JP',
-  'Brasil': 'BR',
-  'Colombia': 'CO',
-  'Canadá': 'CA',
-  'Australia': 'AU',
-}
-
-const CATEGORY_ICONS: Record<string, string> = {
-  'Alimento agrícola': '🌾',
-  'Producto forestal': '🌲',
-  'Textil': '🧵',
-  'Químico': '⚗️',
-  'Mineral': '⛏️',
-  'Maquinaria': '⚙️',
-  'Electrónica': '🔌',
-}
-
-// ─── Component ──────────────────────────────────────────────────────
+// ─── Main Component ────────────────────────────────────────────────
 
 export function Comparator() {
-  const [requirements, setRequirements] = useState<CountryRequirement[]>([])
-  const [loading, setLoading] = useState(true)
-  const [selectedCategory, setSelectedCategory] = useState<string>('Alimento agrícola')
-  const [selectedCountries, setSelectedCountries] = useState<string[]>(['EE.UU.', 'Unión Europea', 'China', 'Japón'])
-  const [showExportToast, setShowExportToast] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set(['opt-1', 'opt-2']))
+  const [searchQuery, setSearchQuery] = useState('')
+  const [activeTab, setActiveTab] = useState<'matrix' | 'details' | 'analytics'>('matrix')
 
-  useEffect(() => {
-    fetch('/api/country-requirements')
-      .then((r) => r.json())
-      .then((d) => { setRequirements(d); setLoading(false) })
-      .catch(() => setLoading(false))
+  const toggleSelection = (id: string) => {
+    const next = new Set(selectedIds)
+    if (next.has(id)) {
+      if (next.size > 1) next.delete(id)
+      else toast.error("Debes mantener al menos una opción seleccionada")
+    } else {
+      if (next.size < 4) next.add(id)
+      else toast.error("Máximo 4 opciones para comparar")
+    }
+    setSelectedIds(next)
+  }
+
+  const selectedOptions = useMemo(() => {
+    return MOCK_OPTIONS.filter(opt => selectedIds.has(opt.id))
+  }, [selectedIds])
+
+  const bestMetrics = useMemo(() => {
+    return {
+      price: Math.min(...MOCK_OPTIONS.map(o => o.costs.total)),
+      time: Math.min(...MOCK_OPTIONS.map(o => o.route.transitTime)),
+      emissions: Math.min(...MOCK_OPTIONS.map(o => o.emissions))
+    }
   }, [])
 
-  // ─── Derived data ────────────────────────────────────────────────
-  const filteredRequirements = useMemo(() => {
-    return requirements.filter(
-      (r) => r.productCategory === selectedCategory && selectedCountries.includes(r.country)
-    )
-  }, [requirements, selectedCategory, selectedCountries])
-
-  // Unique requirement names for the selected category (across all selected countries)
-  const requirementNames = useMemo(() => {
-    const names = new Set<string>()
-    filteredRequirements.forEach((r) => names.add(r.requirementName))
-    return Array.from(names).sort()
-  }, [filteredRequirements])
-
-  // Build a lookup map: requirementName -> country -> requirement data
-  const requirementMap = useMemo(() => {
-    const map: Record<string, Record<string, CountryRequirement>> = {}
-    filteredRequirements.forEach((r) => {
-      if (!map[r.requirementName]) map[r.requirementName] = {}
-      map[r.requirementName][r.country] = r
-    })
-    return map
-  }, [filteredRequirements])
-
-  // Summary: mandatory count per country
-  const mandatoryPerCountry = useMemo(() => {
-    const counts: Record<string, number> = {}
-    selectedCountries.forEach((c) => { counts[c] = 0 })
-    filteredRequirements.forEach((r) => {
-      if (r.isMandatory) {
-        counts[r.country] = (counts[r.country] || 0) + 1
-      }
-    })
-    return counts
-  }, [filteredRequirements, selectedCountries])
-
-  const totalRequirements = filteredRequirements.length
-  const totalMandatory = filteredRequirements.filter((r) => r.isMandatory).length
-  const totalOptional = filteredRequirements.filter((r) => !r.isMandatory).length
-
-  const toggleCountry = (country: string) => {
-    setSelectedCountries((prev) =>
-      prev.includes(country) ? prev.filter((c) => c !== country) : [...prev, country]
-    )
-  }
-
-  const handleExport = () => {
-    toast.success('Comparación exportada', {
-      description: 'El archivo se ha generado exitosamente (demo)',
-    })
-  }
-
-  // ─── Status cell renderer ────────────────────────────────────────
-  const renderStatusCell = (req: CountryRequirement | undefined) => {
-    if (!req) {
-      return (
-        <div className="flex flex-col items-center gap-1 py-1">
-          <Badge variant="secondary" className="text-[10px] bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border-slate-200 dark:border-slate-700">
-            <Minus className="w-3 h-3 mr-0.5" />
-            No aplica
-          </Badge>
-        </div>
-      )
-    }
-
-    if (req.isMandatory) {
-      return (
-        <div className="flex flex-col items-center gap-1 py-1">
-          <Badge variant="secondary" className="text-[10px] bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-800">
-            <XCircle className="w-3 h-3 mr-0.5" />
-            Obligatorio
-          </Badge>
-          {req.maxResidueLevel && (
-            <span className="text-[9px] text-amber-600 dark:text-amber-400 font-medium">
-              Máx: {req.maxResidueLevel}
-            </span>
-          )}
-          {req.localLanguageLabel && (
-            <span className="text-[9px] text-muted-foreground italic">
-              {req.localLanguageLabel}
-            </span>
-          )}
-          {req.regulation && (
-            <span className="text-[8px] text-slate-400 dark:text-slate-500 mt-0.5">
-              {req.regulation}
-            </span>
-          )}
-        </div>
-      )
-    }
-
-    return (
-      <div className="flex flex-col items-center gap-1 py-1">
-        <Badge variant="secondary" className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800">
-          <CheckCircle2 className="w-3 h-3 mr-0.5" />
-          No obligatorio
-        </Badge>
-        {req.maxResidueLevel && (
-          <span className="text-[9px] text-amber-600 dark:text-amber-400 font-medium">
-            Máx: {req.maxResidueLevel}
-          </span>
-        )}
-        {req.localLanguageLabel && (
-          <span className="text-[9px] text-muted-foreground italic">
-            {req.localLanguageLabel}
-          </span>
-        )}
-        {req.regulation && (
-          <span className="text-[8px] text-slate-400 dark:text-slate-500 mt-0.5">
-            {req.regulation}
-          </span>
-        )}
-      </div>
-    )
-  }
-
-  // ─── Loading state ──────────────────────────────────────────────
-  if (loading) {
-    return (
-      <div className="space-y-4">
-        <div className="flex flex-wrap gap-3">
-          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-8 w-32 rounded-full" />)}
-        </div>
-        <Skeleton className="h-60 w-full rounded-lg" />
-      </div>
-    )
-  }
-
   return (
-    <TooltipProvider delayDuration={200}>
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }} className="space-y-4">
-        {/* ─── Summary Stats Bar ────────────────────────────────────── */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-teal-500/10 border border-teal-500/20">
-            <Globe className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
-            <span className="text-xs font-semibold text-teal-700 dark:text-teal-300">{selectedCountries.length} Países</span>
+    <div className="space-y-6 pb-20">
+      {/* ─── Search & Global Filter ────────────────────────────────── */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <h2 className="text-2xl font-black tracking-tight flex items-center gap-2">
+            <Layers className="w-6 h-6 text-teal-500" />
+            Comparador de Tarifas
+          </h2>
+          <p className="text-sm text-muted-foreground italic">
+            Analiza y selecciona la mejor estrategia para tu ruta <span className="font-bold text-foreground">Shanghai ➔ Valencia</span>
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
+            <Input 
+              placeholder="Buscar naviera o servicio..." 
+              className="pl-9 w-[280px] h-10 bg-white/50 backdrop-blur-sm border-slate-200 shadow-sm"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-500/10 border border-red-500/20">
-            <XCircle className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
-            <span className="text-xs font-semibold text-red-700 dark:text-red-300">{totalMandatory} Obligatorios</span>
-          </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-            <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">{totalOptional} Opcionales</span>
-          </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-500/10 border border-slate-500/20">
-            <FileText className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
-            <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">{totalRequirements} Total requisitos</span>
-          </div>
-          <div className="ml-auto">
-            <Button
-              onClick={handleExport}
-              variant="outline"
-              size="sm"
-              className="h-9 gap-1.5 border-teal-300 text-teal-700 hover:bg-teal-50 dark:border-teal-700 dark:text-teal-400 dark:hover:bg-teal-950/30"
+          <Button variant="outline" size="icon" className="h-10 w-10">
+            <Filter className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* ─── Option Selectors (Mini Cards) ─────────────────────────── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {MOCK_OPTIONS.map(opt => {
+          const isSelected = selectedIds.has(opt.id)
+          return (
+            <motion.div
+              key={opt.id}
+              whileHover={{ y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => toggleSelection(opt.id)}
+              className={`cursor-pointer p-3 rounded-xl border-2 transition-all relative overflow-hidden ${
+                isSelected 
+                ? 'bg-teal-600 border-teal-500 text-white shadow-lg shadow-teal-500/20' 
+                : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 hover:border-teal-200'
+              }`}
             >
-              <Download className="w-4 h-4" />
-              Exportar comparación
-            </Button>
-          </div>
+              <div className="flex justify-between items-start mb-2">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${isSelected ? 'bg-white/20' : 'bg-slate-100 dark:bg-slate-800'}`}>
+                  {opt.carrier.logo}
+                </div>
+                {isSelected && <CheckCircle2 className="w-4 h-4" />}
+              </div>
+              <p className={`text-xs font-bold truncate ${isSelected ? 'text-teal-50' : 'text-slate-900 dark:text-slate-100'}`}>{opt.carrier.name}</p>
+              <p className={`text-[10px] ${isSelected ? 'text-teal-200' : 'text-muted-foreground'}`}>{formatUSD(opt.costs.total)} • {opt.route.transitTime} días</p>
+              
+              {isSelected && (
+                <div className="absolute -right-4 -bottom-4 opacity-10">
+                  <Ship className="w-12 h-12 rotate-12" />
+                </div>
+              )}
+            </motion.div>
+          )
+        })}
+      </div>
+
+      {/* ─── Comparison Content ────────────────────────────────────── */}
+      <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="w-full">
+        <div className="flex items-center justify-between mb-4">
+          <TabsList className="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl h-12">
+            <TabsTrigger value="matrix" className="rounded-lg px-6 font-bold data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700 data-[state=active]:text-teal-600">Matriz</TabsTrigger>
+            <TabsTrigger value="details" className="rounded-lg px-6 font-bold data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700 data-[state=active]:text-teal-600">Detalles</TabsTrigger>
+            <TabsTrigger value="analytics" className="rounded-lg px-6 font-bold data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700 data-[state=active]:text-teal-600">Analíticas</TabsTrigger>
+          </TabsList>
+          
+          <Button className="bg-teal-600 hover:bg-teal-700 text-white gap-2 font-bold rounded-xl h-11 px-6 shadow-xl shadow-teal-500/20">
+            Reservar Selección
+            <ChevronRight className="w-4 h-4" />
+          </Button>
         </div>
 
-        {/* ─── Filter Bar ───────────────────────────────────────────── */}
-        <Card className="overflow-hidden border-0 shadow-sm">
-          <CardContent className="p-0">
-            <div className="bg-gradient-to-r from-teal-50/80 via-white to-cyan-50/80 dark:from-teal-950/30 dark:via-background dark:to-cyan-950/30 p-4">
-              <div className="space-y-4">
-                {/* Product Category Selector */}
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-                    <Filter className="w-3.5 h-3.5" />
-                    Categoría de producto:
-                  </div>
-                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                    <SelectTrigger className="w-[220px] h-9 bg-white/60 dark:bg-background/60 backdrop-blur-sm">
-                      <SelectValue placeholder="Seleccionar categoría" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PRODUCT_CATEGORIES.map((cat) => (
-                        <SelectItem key={cat} value={cat}>
-                          {CATEGORY_ICONS[cat]} {cat}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Country Multi-Selector */}
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-                    <Globe className="w-3.5 h-3.5" />
-                    Países a comparar:
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {ALL_COUNTRIES.map((country) => {
-                      const isSelected = selectedCountries.includes(country)
-                      return (
-                        <label
-                          key={country}
-                          className={`flex items-center gap-2 px-3 py-1.5 rounded-full border cursor-pointer transition-all duration-200 ${
-                            isSelected
-                              ? 'bg-teal-50 border-teal-300 text-teal-700 dark:bg-teal-900/30 dark:border-teal-700 dark:text-teal-300 shadow-sm'
-                              : 'bg-white/50 border-slate-200 text-slate-600 hover:bg-slate-50 dark:bg-background/30 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800/30'
-                          }`}
-                        >
-                          <Checkbox
-                            checked={isSelected}
-                            onCheckedChange={() => toggleCountry(country)}
-                            className="h-3.5 w-3.5"
-                          />
-                          <span className="text-xs font-medium">
-                            {COUNTRY_FLAGS[country]} {country}
-                          </span>
-                        </label>
-                      )
-                    })}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* ─── Comparison Table ─────────────────────────────────────── */}
-        {selectedCountries.length === 0 ? (
-          <Card className="border-0 shadow-sm">
-            <CardContent className="p-12 text-center">
-              <Globe className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-              <p className="text-sm font-medium text-muted-foreground">Selecciona al menos un país para comparar</p>
-              <p className="text-xs text-muted-foreground/70 mt-1">Usa los checkboxes de arriba para elegir países</p>
-            </CardContent>
-          </Card>
-        ) : requirementNames.length === 0 ? (
-          <Card className="border-0 shadow-sm">
-            <CardContent className="p-12 text-center">
-              <AlertTriangle className="w-12 h-12 text-amber-400/50 mx-auto mb-3" />
-              <p className="text-sm font-medium text-muted-foreground">No hay requisitos disponibles</p>
-              <p className="text-xs text-muted-foreground/70 mt-1">
-                No se encontraron requisitos para &quot;{CATEGORY_ICONS[selectedCategory]} {selectedCategory}&quot; en los países seleccionados
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card className="overflow-hidden border-0 shadow-sm">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-semibold flex items-center gap-2">
-                  <Scale className="w-4 h-4 text-teal-500" />
-                  Comparación: {CATEGORY_ICONS[selectedCategory]} {selectedCategory}
-                  <Badge variant="secondary" className="text-[10px] ml-2">
-                    {requirementNames.length} requisitos
-                  </Badge>
-                </CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <ScrollArea className="max-h-[calc(100vh-420px)]">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/30 hover:bg-muted/30">
-                      <TableHead className="text-xs font-semibold min-w-[200px] sticky left-0 bg-muted/30 z-10">
-                        <div className="flex items-center gap-1.5">
-                          <ArrowUpDown className="w-3 h-3" />
-                          Requisito
+        <AnimatePresence mode="wait">
+          {activeTab === 'matrix' && (
+            <motion.div
+              key="matrix"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+            >
+              {selectedOptions.map((opt, idx) => (
+                <Card key={opt.id} className="border-0 shadow-2xl bg-white dark:bg-slate-900 overflow-hidden group">
+                  <div className={`h-2 w-full ${idx === 0 ? 'bg-teal-500' : idx === 1 ? 'bg-blue-500' : 'bg-indigo-500'}`} />
+                  
+                  <CardHeader className="pb-4">
+                    <div className="flex justify-between items-start">
+                      <div className="space-y-1">
+                        <h3 className="font-black text-xl tracking-tight">{opt.carrier.name}</h3>
+                        <div className="flex items-center gap-1">
+                          {[...Array(5)].map((_, i) => (
+                            <Star key={i} className={`w-3 h-3 ${i < Math.floor(opt.carrier.rating) ? 'text-amber-400 fill-amber-400' : 'text-slate-200'}`} />
+                          ))}
+                          <span className="text-[10px] font-bold ml-1 text-muted-foreground">{opt.carrier.rating}</span>
                         </div>
-                      </TableHead>
-                      {selectedCountries.map((country) => (
-                        <TableHead key={country} className="text-xs font-semibold text-center min-w-[160px]">
-                          <div className="flex flex-col items-center gap-0.5">
-                            <span className="text-base">{COUNTRY_FLAGS[country]}</span>
-                            <span>{COUNTRY_SHORT[country]}</span>
-                          </div>
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    <AnimatePresence>
-                      {requirementNames.map((reqName, rowIndex) => {
-                        const countryData = requirementMap[reqName] || {}
-                        // Determine if this row has any mandatory requirement
-                        const hasMandatory = Object.values(countryData).some((r) => r.isMandatory)
-                        const allMandatory = Object.values(countryData).length > 0 && Object.values(countryData).every((r) => r.isMandatory)
-                        const hasGap = selectedCountries.some((c) => !countryData[c])
+                      </div>
+                      <div className="text-right">
+                        <p className="text-2xl font-black text-slate-900 dark:text-slate-100">{formatUSD(opt.costs.total)}</p>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Todo Incluido</p>
+                      </div>
+                    </div>
+                  </CardHeader>
 
-                        return (
-                          <motion.tr
-                            key={reqName}
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ delay: rowIndex * 0.02 }}
-                            className={`${rowIndex % 2 === 1 ? 'bg-muted/20' : ''} hover:bg-teal-50/50 dark:hover:bg-teal-950/20 transition-colors ${
-                              hasGap ? 'border-l-4 border-l-amber-400' : hasMandatory ? 'border-l-4 border-l-red-400' : 'border-l-4 border-l-emerald-400'
-                            }`}
+                  <CardContent className="space-y-6">
+                    {/* Tags */}
+                    <div className="flex flex-wrap gap-1.5">
+                      {opt.tags.map(tag => (
+                        <Badge key={tag} className={`text-[9px] font-black uppercase px-2 py-0.5 ${
+                          tag === 'Best Price' ? 'bg-emerald-500 hover:bg-emerald-600' :
+                          tag === 'Fastest' ? 'bg-blue-500 hover:bg-blue-600' :
+                          tag === 'Greenest' ? 'bg-teal-500 hover:bg-teal-600' :
+                          'bg-indigo-500 hover:bg-indigo-600'
+                        }`}>
+                          {tag}
+                        </Badge>
+                      ))}
+                      {opt.tags.length === 0 && <Badge variant="outline" className="text-[9px] opacity-50">Standard</Badge>}
+                    </div>
+
+                    {/* Timeline */}
+                    <div className="space-y-3 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl relative overflow-hidden">
+                      <div className="flex justify-between text-[10px] font-black text-muted-foreground uppercase">
+                        <span>CNSHA</span>
+                        <span className="text-teal-600">{opt.route.transitTime} días</span>
+                        <span>ESVLC</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-slate-400" />
+                        <div className="h-0.5 flex-1 bg-gradient-to-r from-slate-200 via-teal-400 to-slate-200 relative">
+                          <motion.div 
+                            animate={{ x: [0, 100, 0] }} 
+                            transition={{ duration: 5, repeat: Infinity, ease: "linear" }}
+                            className="absolute -top-1.5 left-0"
                           >
-                            <TableCell className="py-3 sticky left-0 bg-inherit z-10">
-                              <div className="flex flex-col gap-0.5">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs font-semibold text-foreground">{reqName}</span>
-                                  {allMandatory && (
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <span className="inline-flex">
-                                          <Shield className="w-3 h-3 text-red-500" />
-                                        </span>
-                                      </TooltipTrigger>
-                                      <TooltipContent className="shadow-xl">
-                                        <p className="text-xs">Obligatorio en todos los países seleccionados</p>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  )}
-                                  {hasGap && (
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <span className="inline-flex">
-                                          <AlertTriangle className="w-3 h-3 text-amber-500" />
-                                        </span>
-                                      </TooltipTrigger>
-                                      <TooltipContent className="shadow-xl">
-                                        <p className="text-xs">No aplica en algunos países seleccionados</p>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  )}
-                                </div>
-                                {countryData[selectedCountries[0]]?.description && (
-                                  <span className="text-[10px] text-muted-foreground leading-tight max-w-[250px] truncate">
-                                    {countryData[selectedCountries[0]].description}
-                                  </span>
-                                )}
-                              </div>
-                            </TableCell>
-                            {selectedCountries.map((country) => {
-                              const req = countryData[country]
-                              return (
-                                <TableCell key={country} className="py-3 text-center">
-                                  {renderStatusCell(req)}
-                                </TableCell>
-                              )
-                            })}
-                          </motion.tr>
-                        )
-                      })}
-                    </AnimatePresence>
-
-                    {/* ─── Summary Row ──────────────────────────────────── */}
-                    <TableRow className="bg-teal-50/60 dark:bg-teal-950/20 hover:bg-teal-50/60 dark:hover:bg-teal-950/20 border-t-2 border-teal-200 dark:border-teal-800">
-                      <TableCell className="py-3 sticky left-0 bg-inherit z-10">
-                        <div className="flex items-center gap-2">
-                          <BookOpen className="w-4 h-4 text-teal-600 dark:text-teal-400" />
-                          <span className="text-xs font-bold text-teal-700 dark:text-teal-300">Total obligatorios</span>
+                            <Ship className="w-3 h-3 text-teal-600" />
+                          </motion.div>
                         </div>
-                      </TableCell>
-                      {selectedCountries.map((country) => (
-                        <TableCell key={country} className="py-3 text-center">
-                          <div className="flex flex-col items-center gap-1">
-                            <Badge className="text-sm font-bold bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300 border-teal-200 dark:border-teal-800">
-                              {mandatoryPerCountry[country] || 0}
-                            </Badge>
-                            <span className="text-[9px] text-muted-foreground">
-                              de {filteredRequirements.filter((r) => r.country === country).length} totales
-                            </span>
-                          </div>
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        )}
+                        <div className="w-2 h-2 rounded-full bg-teal-500 shadow-sm shadow-teal-500/50" />
+                      </div>
+                      <p className="text-[10px] text-center font-medium text-slate-500">Próxima salida: 12 Mayo, 2026</p>
+                    </div>
 
-        {/* ─── Legend ────────────────────────────────────────────────── */}
-        <Card className="border-0 shadow-sm">
-          <CardContent className="p-4">
-            <div className="flex flex-wrap items-center gap-6">
-              <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-                <Info className="w-3.5 h-3.5" />
-                Leyenda:
+                    {/* Metrics Progress */}
+                    <div className="space-y-4">
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between text-[10px] font-bold">
+                          <span className="flex items-center gap-1.5"><ShieldCheck className="w-3 h-3 text-emerald-500" /> Fiabilidad</span>
+                          <span className="text-emerald-600">{opt.carrier.reliability}%</span>
+                        </div>
+                        <Progress value={opt.carrier.reliability} className="h-1.5" indicatorClassName="bg-emerald-500" />
+                      </div>
+                      
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between text-[10px] font-bold">
+                          <span className="flex items-center gap-1.5"><Leaf className="w-3 h-3 text-teal-500" /> Eco-Impacto</span>
+                          <span className={opt.emissions === bestMetrics.emissions ? 'text-teal-600' : 'text-slate-500'}>
+                            {opt.emissions} kg CO2
+                          </span>
+                        </div>
+                        <Progress value={(bestMetrics.emissions / opt.emissions) * 100} className="h-1.5" indicatorClassName="bg-teal-500" />
+                      </div>
+                    </div>
+
+                    <Separator className="opacity-50" />
+
+                    {/* Features Mini-list */}
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Inclusiones Key</p>
+                      <div className="grid grid-cols-1 gap-1">
+                        {opt.inclusions.slice(0, 3).map(inc => (
+                          <div key={inc} className="flex items-center gap-2 text-xs">
+                            <CheckCircle2 className="w-3 h-3 text-teal-500" />
+                            <span className="truncate">{inc}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <Button variant="ghost" className="w-full text-xs font-bold gap-2 group-hover:bg-slate-100 dark:group-hover:bg-slate-800">
+                      Ver detalle de recargos
+                      <ArrowRight className="w-3 h-3" />
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </motion.div>
+          )}
+
+          {activeTab === 'details' && (
+            <motion.div
+              key="details"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="bg-white dark:bg-slate-900 rounded-3xl shadow-xl overflow-hidden border border-slate-100 dark:border-slate-800"
+            >
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 dark:bg-slate-800/50 border-b">
+                      <th className="p-6 text-xs font-black uppercase text-muted-foreground tracking-widest">Característica</th>
+                      {selectedOptions.map(opt => (
+                        <th key={opt.id} className="p-6 text-center border-l min-w-[200px]">
+                          <p className="font-black text-lg">{opt.carrier.name}</p>
+                          <Badge variant="outline" className="mt-1 text-[10px]">{opt.id}</Badge>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    <tr>
+                      <td className="p-6 text-sm font-bold bg-slate-50/30">Precio Total (All-in)</td>
+                      {selectedOptions.map(opt => (
+                        <td key={opt.id} className="p-6 text-center border-l">
+                          <span className={`text-xl font-black ${opt.costs.total === bestMetrics.price ? 'text-emerald-600' : ''}`}>
+                            {formatUSD(opt.costs.total)}
+                          </span>
+                        </td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <td className="p-6 text-sm font-bold bg-slate-50/30">Tiempo de Tránsito</td>
+                      {selectedOptions.map(opt => (
+                        <td key={opt.id} className="p-6 text-center border-l">
+                          <span className={`font-black ${opt.route.transitTime === bestMetrics.time ? 'text-blue-600' : ''}`}>
+                            {opt.route.transitTime} días
+                          </span>
+                          <p className="text-[10px] text-muted-foreground mt-1">Directo / 1 Escala</p>
+                        </td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <td className="p-6 text-sm font-bold bg-slate-50/30">Días Libres (Destino)</td>
+                      {selectedOptions.map(opt => (
+                        <td key={opt.id} className="p-6 text-center border-l">
+                          <Badge variant="secondary" className="font-bold">{opt.freeDays} días</Badge>
+                        </td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <td className="p-6 text-sm font-bold bg-slate-50/30">Emisiones CO2</td>
+                      {selectedOptions.map(opt => (
+                        <td key={opt.id} className="p-6 text-center border-l font-medium">
+                          {opt.emissions} kg
+                        </td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <td className="p-6 text-sm font-bold bg-slate-50/30">Buques Asignados</td>
+                      {selectedOptions.map(opt => (
+                        <td key={opt.id} className="p-6 text-center border-l text-xs">
+                          {opt.route.vessels.join(', ')}
+                        </td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <td className="p-6 text-sm font-bold bg-slate-50/30">Inclusiones</td>
+                      {selectedOptions.map(opt => (
+                        <td key={opt.id} className="p-6 border-l">
+                          <ul className="space-y-1">
+                            {opt.inclusions.map(inc => (
+                              <li key={inc} className="text-[11px] flex items-center gap-2">
+                                <div className="w-1 h-1 rounded-full bg-teal-500" />
+                                {inc}
+                              </li>
+                            ))}
+                          </ul>
+                        </td>
+                      ))}
+                    </tr>
+                  </tbody>
+                </table>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-sm bg-red-400" />
-                <span className="text-xs text-muted-foreground">Obligatorio — requisito exigido</span>
+            </motion.div>
+          )}
+
+          {activeTab === 'analytics' && (
+            <motion.div
+              key="analytics"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="space-y-6"
+            >
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Inventory Carrying Cost (TCO) */}
+                <Card className="lg:col-span-2 border-0 shadow-xl bg-white dark:bg-slate-900 overflow-hidden">
+                  <CardHeader className="bg-slate-50 dark:bg-slate-800/50">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <CardTitle className="text-lg">Análisis de Costo Total (TCO)</CardTitle>
+                        <CardDescription>Costo de flete + Capital inmovilizado en tránsito</CardDescription>
+                      </div>
+                      <Badge variant="outline" className="border-teal-500 text-teal-600 font-bold">Mercancía: $100k</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left">
+                        <thead className="text-[10px] font-black uppercase text-muted-foreground border-b bg-slate-50/50">
+                          <tr>
+                            <th className="p-4">Naviera</th>
+                            <th className="p-4">Costo Flete</th>
+                            <th className="p-4">Costo Inventario (15% AP)</th>
+                            <th className="p-4">TCO Final</th>
+                            <th className="p-4">Diferencia</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {selectedOptions.map(opt => {
+                            const inventoryCost = (100000 * 0.15 * opt.route.transitTime) / 365
+                            const tco = opt.costs.total + inventoryCost
+                            return (
+                              <tr key={opt.id} className="hover:bg-slate-50/50 transition-colors">
+                                <td className="p-4 font-bold text-sm">{opt.carrier.name}</td>
+                                <td className="p-4 text-sm font-medium">{formatUSD(opt.costs.total)}</td>
+                                <td className="p-4 text-sm font-medium text-amber-600">{formatUSD(inventoryCost)}</td>
+                                <td className="p-4 text-sm font-black text-slate-900 dark:text-white">{formatUSD(tco)}</td>
+                                <td className="p-4">
+                                  <div className="flex items-center gap-1.5">
+                                    <div className="h-1.5 w-16 bg-slate-100 rounded-full overflow-hidden">
+                                      <div 
+                                        className="h-full bg-teal-500" 
+                                        style={{ width: `${(opt.costs.total / tco) * 100}%` }}
+                                      />
+                                    </div>
+                                    <span className="text-[10px] font-bold text-muted-foreground">{Math.round((opt.costs.total / tco) * 100)}%</span>
+                                  </div>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="p-4 bg-teal-50/50 dark:bg-teal-900/10 border-t flex gap-3 items-center">
+                      <Info className="w-4 h-4 text-teal-600" />
+                      <p className="text-[10px] text-teal-800 dark:text-teal-300 italic">
+                        El TCO considera el costo de oportunidad del capital (15% anual). Una ruta más rápida libera flujo de caja antes.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Price Trends */}
+                <Card className="border-0 shadow-xl bg-white dark:bg-slate-900">
+                  <CardHeader>
+                    <CardTitle className="text-lg">Tendencia de Tarifas</CardTitle>
+                    <CardDescription>Freight Index vs Histórico 6 meses</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {selectedOptions.map(opt => (
+                      <div key={opt.id} className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-lg ${opt.priceTrend === 'down' ? 'bg-emerald-100 text-emerald-600' : opt.priceTrend === 'up' ? 'bg-rose-100 text-rose-600' : 'bg-blue-100 text-blue-600'}`}>
+                            {opt.priceTrend === 'down' ? <TrendingDown className="w-4 h-4" /> : opt.priceTrend === 'up' ? <Zap className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold">{opt.carrier.name}</p>
+                            <p className="text-[9px] text-muted-foreground">Hist: {formatUSD(opt.historicalAvg)}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className={`text-sm font-black ${opt.costs.total < opt.historicalAvg ? 'text-emerald-600' : 'text-slate-600'}`}>
+                            {Math.abs(Math.round(((opt.costs.total - opt.historicalAvg) / opt.historicalAvg) * 100))}%
+                            {opt.costs.total < opt.historicalAvg ? ' menos' : ' más'}
+                          </p>
+                          <Badge variant="outline" className="text-[8px] h-4 py-0">
+                            {opt.priceTrend === 'down' ? 'Oportunidad' : 'Pico'}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-sm bg-emerald-400" />
-                <span className="text-xs text-muted-foreground">No obligatorio — recomendado</span>
+
+              {/* Risk Intelligence Map/Indicators */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <Card className="lg:col-span-2 border-0 shadow-xl bg-slate-900 text-white overflow-hidden relative">
+                   <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20 pointer-events-none" />
+                   <CardHeader className="relative z-10">
+                     <div className="flex items-center gap-2">
+                       <Globe className="w-5 h-5 text-teal-400" />
+                       <CardTitle className="text-lg">Inteligencia de Riesgo en Ruta</CardTitle>
+                     </div>
+                     <CardDescription className="text-slate-400">Estado actual de la cadena de suministro global</CardDescription>
+                   </CardHeader>
+                   <CardContent className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-4">
+                     {selectedOptions.map(opt => (
+                       <div key={opt.id} className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-4 backdrop-blur-sm">
+                         <p className="text-xs font-black uppercase text-teal-400 tracking-widest">{opt.carrier.name}</p>
+                         
+                         <div className="space-y-3">
+                           <div className="space-y-1">
+                             <div className="flex justify-between text-[10px]">
+                               <span className="flex items-center gap-1.5 opacity-70"><RefreshCw className="w-3 h-3" /> Congestión Portuaria</span>
+                               <span className={opt.riskProfile.congestion > 6 ? 'text-rose-400' : 'text-emerald-400'}>{opt.riskProfile.congestion}/10</span>
+                             </div>
+                             <Progress value={opt.riskProfile.congestion * 10} className="h-1 bg-white/10" indicatorClassName={opt.riskProfile.congestion > 6 ? 'bg-rose-400' : 'bg-emerald-400'} />
+                           </div>
+
+                           <div className="space-y-1">
+                             <div className="flex justify-between text-[10px]">
+                               <span className="flex items-center gap-1.5 opacity-70"><Zap className="w-3 h-3" /> Eventos Climáticos</span>
+                               <span className={opt.riskProfile.weather > 4 ? 'text-amber-400' : 'text-emerald-400'}>{opt.riskProfile.weather}/10</span>
+                             </div>
+                             <Progress value={opt.riskProfile.weather * 10} className="h-1 bg-white/10" indicatorClassName={opt.riskProfile.weather > 4 ? 'bg-amber-400' : 'bg-emerald-400'} />
+                           </div>
+
+                           <div className="space-y-1">
+                             <div className="flex justify-between text-[10px]">
+                               <span className="flex items-center gap-1.5 opacity-70"><Anchor className="w-3 h-3" /> Estabilidad Geopolítica</span>
+                               <span className="text-emerald-400">Segura</span>
+                             </div>
+                             <Progress value={opt.riskProfile.geopolitical * 10} className="h-1 bg-white/10" indicatorClassName="bg-emerald-400" />
+                           </div>
+                         </div>
+                       </div>
+                     ))}
+                   </CardContent>
+                </Card>
+
+                <div className="p-6 bg-gradient-to-br from-teal-600 to-emerald-800 rounded-3xl text-white shadow-xl shadow-teal-500/20 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="p-2 bg-white/20 rounded-xl">
+                        <Star className="w-5 h-5 fill-white" />
+                      </div>
+                      <h4 className="font-bold">Estrategia Ganadora</h4>
+                    </div>
+                    <p className="text-sm text-teal-50 leading-relaxed">
+                      Basado en el <span className="font-bold">TCO</span> y el <span className="font-bold">Freight Index</span>, la opción de <span className="font-bold">Maersk Line</span> es la más eficiente. 
+                      Aunque el flete es ligeramente superior, el ahorro en capital inmovilizado y el bajo perfil de riesgo compensan la inversión.
+                    </p>
+                  </div>
+                  <Button variant="outline" className="mt-6 border-white/30 text-white hover:bg-white/10 font-bold gap-2">
+                    Ejecutar Orden de Reserva
+                    <ArrowRight className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-sm bg-slate-300 dark:bg-slate-600" />
-                <span className="text-xs text-muted-foreground">No aplica — no requerido para este país</span>
-              </div>
-              <Separator orientation="vertical" className="h-4" />
-              <div className="flex items-center gap-2">
-                <div className="w-1 h-4 rounded-full bg-amber-400" />
-                <span className="text-xs text-muted-foreground">Borde ámbar = existe brecha entre países</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-1 h-4 rounded-full bg-red-400" />
-                <span className="text-xs text-muted-foreground">Borde rojo = requisitos obligatorios</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-1 h-4 rounded-full bg-emerald-400" />
-                <span className="text-xs text-muted-foreground">Borde verde = solo opcionales</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </motion.div>
+          )}
+
+        </AnimatePresence>
+      </Tabs>
+
+      {/* ─── Footer: Global Summary ────────────────────────────────── */}
+      <motion.div 
+        initial={{ y: 50 }} 
+        animate={{ y: 0 }}
+        className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-4xl bg-slate-900/90 backdrop-blur-xl border border-slate-700 p-4 rounded-3xl shadow-2xl z-50 flex items-center justify-between"
+      >
+        <div className="flex items-center gap-6 px-4 border-r border-slate-700">
+          <div className="space-y-0.5">
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Comparando</p>
+            <p className="text-sm font-bold text-white">{selectedIds.size} Opciones</p>
+          </div>
+          <div className="space-y-0.5">
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Rango de Precio</p>
+            <p className="text-sm font-bold text-emerald-400">{formatUSD(bestMetrics.price)} - {formatUSD(Math.max(...selectedOptions.map(o => o.costs.total)))}</p>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" className="text-white hover:bg-white/10 text-xs font-bold gap-2" onClick={() => toast.info("Reporte enviado a tu correo")}>
+            <Download className="w-4 h-4" /> Exportar
+          </Button>
+          <Button className="bg-teal-500 hover:bg-teal-600 text-white font-black px-8 rounded-2xl h-11 shadow-lg shadow-teal-500/20">
+            Continuar con Reserva
+          </Button>
+        </div>
       </motion.div>
-    </TooltipProvider>
+    </div>
   )
 }

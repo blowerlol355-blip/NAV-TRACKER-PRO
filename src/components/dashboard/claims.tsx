@@ -18,7 +18,8 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/
 import {
   AlertTriangle, XCircle, Search, Plus, ChevronRight, Eye, FileWarning,
   ShieldAlert, CheckCircle2, X as XIcon, Clock, DollarSign, Gavel,
-  BookOpen, AlertOctagon, Flag, RefreshCw, TrendingUp, Ban, Download, Printer
+  BookOpen, AlertOctagon, Flag, RefreshCw, TrendingUp, Ban, Download, Printer,
+  Edit3, Trash2, Save, FileText
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
@@ -146,8 +147,11 @@ export function Claims() {
   const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null)
   const [showDetail, setShowDetail] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
+  const [showFollowUp, setShowFollowUp] = useState(false)
   const [addingClaim, setAddingClaim] = useState(false)
+  const [updatingClaim, setUpdatingClaim] = useState(false)
   const [showLessons, setShowLessons] = useState(false)
+  const [followUpStatus, setFollowUpStatus] = useState<string>('')
 
   useEffect(() => {
     fetch('/api/claims')
@@ -209,15 +213,58 @@ export function Claims() {
       status: 'Abierto',
     }
     try {
-      await fetch('/api/claims', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      const res = await fetch('/api/claims', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      if (!res.ok) throw new Error()
       toast.success('Reclamación registrada exitosamente')
       setShowAdd(false)
-      const res = await fetch('/api/claims')
-      setClaims(await res.json())
+      const refresh = await fetch('/api/claims')
+      setClaims(await refresh.json())
     } catch {
       toast.error('Error al registrar reclamación')
     } finally {
       setAddingClaim(false)
+    }
+  }
+
+  const handleUpdateClaim = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (!selectedClaim) return
+    setUpdatingClaim(true)
+    const form = new FormData(e.currentTarget)
+    const body = {
+      status: followUpStatus || (form.get('status') as string),
+      resolution: form.get('resolution') as string || null,
+      lessonsLearned: form.get('lessonsLearned') as string || null,
+      notes: form.get('notes') as string || null,
+      incidentCost: form.get('incidentCost') ? parseFloat(form.get('incidentCost') as string) : selectedClaim.incidentCost,
+    }
+    try {
+      const res = await fetch(`/api/claims/${selectedClaim.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+      if (!res.ok) throw new Error()
+      toast.success('Seguimiento actualizado correctamente')
+      setShowFollowUp(false)
+      const refresh = await fetch('/api/claims')
+      setClaims(await refresh.json())
+    } catch {
+      toast.error('Error al actualizar seguimiento')
+    } finally {
+      setUpdatingClaim(false)
+    }
+  }
+
+  const handleDeleteClaim = async (id: string) => {
+    if (!confirm('¿Estás seguro de eliminar esta reclamación?')) return
+    try {
+      const res = await fetch(`/api/claims/${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error()
+      toast.success('Reclamación eliminada')
+      setClaims(claims.filter(c => c.id !== id))
+    } catch {
+      toast.error('Error al eliminar reclamación')
     }
   }
 
@@ -483,14 +530,49 @@ export function Claims() {
                             <span className="text-xs text-muted-foreground">{formatDate(c.reportedDate)}</span>
                           </TableCell>
                           <TableCell className="py-2 text-center">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 w-7 p-0 text-teal-600 hover:text-teal-700 hover:bg-teal-50 dark:text-teal-400 dark:hover:bg-teal-950/30"
-                              onClick={(e) => { e.stopPropagation(); setSelectedClaim(c); setShowDetail(true) }}
-                            >
-                              <Eye className="w-4 h-4" />
-                            </Button>
+                            <div className="flex items-center justify-center gap-1">
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 w-7 p-0 text-teal-600 hover:text-teal-700 hover:bg-teal-50 dark:text-teal-400 dark:hover:bg-teal-950/30"
+                                    onClick={(e) => { e.stopPropagation(); setSelectedClaim(c); setShowDetail(true) }}
+                                  >
+                                    <Eye className="w-4 h-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Ver detalles</TooltipContent>
+                              </Tooltip>
+                              
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 w-7 p-0 text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/30"
+                                    onClick={(e) => { e.stopPropagation(); setSelectedClaim(c); setFollowUpStatus(c.status); setShowFollowUp(true) }}
+                                  >
+                                    <Edit3 className="w-4 h-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Seguimiento / Editar</TooltipContent>
+                              </Tooltip>
+
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 w-7 p-0 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                                    onClick={(e) => { e.stopPropagation(); handleDeleteClaim(c.id) }}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Eliminar</TooltipContent>
+                              </Tooltip>
+                            </div>
                           </TableCell>
                         </motion.tr>
                       )
@@ -871,6 +953,100 @@ export function Claims() {
                 </Button>
               </DialogFooter>
             </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* ─── Follow-up Dialog ────────────────────────────────────── */}
+        <Dialog open={showFollowUp} onOpenChange={setShowFollowUp}>
+          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto p-0">
+            {selectedClaim && (
+              <>
+                <div className="bg-gradient-to-r from-amber-600 to-amber-500 p-6 rounded-t-lg relative overflow-hidden">
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_50%,rgba(255,255,255,0.1),transparent)] pointer-events-none" />
+                  <div className="relative z-10 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                      <Edit3 className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <DialogTitle className="text-white text-lg font-bold">Seguimiento de Reclamación</DialogTitle>
+                      <p className="text-amber-100 text-xs">Actualizar estado y resolución de {selectedClaim.shipment?.reference}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <form onSubmit={handleUpdateClaim}>
+                  <div className="p-6 space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-medium">Estado del Caso</Label>
+                        <Select name="status" value={followUpStatus} onValueChange={setFollowUpStatus}>
+                          <SelectTrigger className="h-9 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ALL_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-medium">Costo Ajustado (USD)</Label>
+                        <Input 
+                          name="incidentCost" 
+                          type="number" 
+                          step="0.01" 
+                          defaultValue={selectedClaim.incidentCost || ''} 
+                          className="h-9 text-xs" 
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                        Resolución del Caso
+                      </Label>
+                      <Textarea 
+                        name="resolution" 
+                        defaultValue={selectedClaim.resolution || ''} 
+                        placeholder="Describa cómo se resolvió el incidente..." 
+                        className="text-xs min-h-[80px]" 
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium flex items-center gap-1.5">
+                        <BookOpen className="w-3.5 h-3.5 text-amber-500" />
+                        Lecciones Aprendidas
+                      </Label>
+                      <Textarea 
+                        name="lessonsLearned" 
+                        defaultValue={selectedClaim.lessonsLearned || ''} 
+                        placeholder="¿Qué podemos mejorar para evitar esto en el futuro?" 
+                        className="text-xs min-h-[80px]" 
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">Notas Internas</Label>
+                      <Textarea 
+                        name="notes" 
+                        defaultValue={selectedClaim.notes || ''} 
+                        placeholder="Observaciones adicionales de seguimiento..." 
+                        className="text-xs min-h-[60px]" 
+                      />
+                    </div>
+                  </div>
+
+                  <DialogFooter className="p-4 border-t bg-muted/30">
+                    <Button type="button" variant="outline" onClick={() => setShowFollowUp(false)} className="h-9">Cancelar</Button>
+                    <Button type="submit" disabled={updatingClaim} className="h-9 bg-amber-600 hover:bg-amber-700 gap-1.5 text-white">
+                      {updatingClaim ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                      Guardar Cambios
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </>
+            )}
           </DialogContent>
         </Dialog>
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -20,7 +20,7 @@ import {
   FileCheck, Box, FileText, Anchor, Calendar, Weight, DollarSign, Navigation,
   RefreshCw, MapPin, ChevronDown, Download, ClipboardList, PackageCheck,
   ShieldCheck, AlertTriangle, ChevronUp, Eye, Clock, FileWarning, FilePlus2,
-  ArrowLeftRight, Sparkles, Info, Printer
+  ArrowLeftRight, Sparkles, Info, Printer, Users, Paperclip
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
@@ -78,6 +78,16 @@ const CARGO_ICONS: Record<string, string> = {
 
 const CARGO_TYPES = ['Contenedorizado', 'Granel', 'Granel Sólido', 'Granel Líquido', 'Carga General', 'Perecederos', 'Peligrosa', 'Proyecto', 'Maquinaria']
 const ALL_STATUSES = ['Registrado', 'En documentación', 'Listo para embarque', 'En tránsito', 'En puerto de destino', 'En aduana', 'Entregado', 'Con retraso', 'Pendiente de despacho']
+
+/** Categorías para documentos del envío (permisos, embarque, etc.) */
+const SHIPMENT_DOC_CATEGORIES = [
+  { key: 'attachmentsPermisos', label: 'Permisos', hint: 'Licencias, autorizaciones regulatorias' },
+  { key: 'attachmentsEmbarque', label: 'Embarque', hint: 'BL, conocimiento, manifiesto, booking' },
+  { key: 'attachmentsAduana', label: 'Aduana y legal', hint: 'DUA, cartas, poderes' },
+  { key: 'attachmentsOtros', label: 'Otros', hint: 'Facturas, seguros, listas de empaque…' },
+] as const
+
+const SHIPMENT_DOC_CATEGORY_VALUES = ['Permisos', 'Embarque', 'Aduana y legal', 'Otros'] as const
 
 // ── Document Requirements Engine ─────────────────────────────────────────────
 interface DocRequirement {
@@ -192,7 +202,12 @@ interface Shipment {
   vessel: { id: string; name: string; imo: string } | null
   permits: { id: string; type: string; number: string; status: string }[]
   containers: { id: string; number: string; type: string; status: string; weight: number }[]
-  documents: { id: string; name: string; type: string; status: string; documentSubtype?: string; category?: string }[]
+  documents: { id: string; name: string; type: string; status: string; documentSubtype?: string; category?: string | null; fileUrl?: string | null }[]
+  crewAssignments?: {
+    id: string
+    role: string
+    crew: { id: string; fullName: string; role: string }
+  }[]
   createdAt?: string | null
   updatedAt?: string | null
 }
@@ -237,6 +252,12 @@ function getStageNotes(shipment: Shipment): Record<string, string> {
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
+// ── Crew role options ───────────────────────────────────────────────────────
+const CREW_ROLES = [
+  'Capitán', 'Jefe de Máquinas', 'Oficial de Cubierta', 'Oficial de Máquinas',
+  'Marinero', 'Cocinero', 'Médico a bordo', 'Electricista', 'Mecánico', 'Tripulante',
+]
+
 export function Shipments() {
   const [shipments, setShipments] = useState<Shipment[]>([])
   const [loading, setLoading] = useState(true)
@@ -250,13 +271,20 @@ export function Shipments() {
   const [showDetail, setShowDetail] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
   const [vessels, setVessels] = useState<{ id: string; name: string }[]>([])
+  // Crew
+  const [allCrew, setAllCrew] = useState<{ id: string; fullName: string; role: string; status: string }[]>([])
+  const [createCrewAssignments, setCreateCrewAssignments] = useState<{ crewId: string; role: string }[]>([])
+  const [editCrewAssignments, setEditCrewAssignments] = useState<{ crewId: string; role: string }[]>([])
+  const [savingCrew, setSavingCrew] = useState(false)
+  // Key counters to force-remount the picker Selects after each selection
+  const [addCrewCreateKey, setAddCrewCreateKey] = useState(0)
+  const [addCrewEditKey, setAddCrewEditKey] = useState(0)
   const [showStatusUpdate, setShowStatusUpdate] = useState(false)
   const [updatingStatus, setUpdatingStatus] = useState(false)
   const [showFullWorkflow, setShowFullWorkflow] = useState(false)
   const [addCargoType, setAddCargoType] = useState('Contenedorizado')
   const [expandedDocChecklist, setExpandedDocChecklist] = useState<string | null>(null)
-  const attachmentsRef = useRef<HTMLInputElement | null>(null)
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [createDocCounts, setCreateDocCounts] = useState<Record<string, number>>({})
 
   const fetchShipments = useCallback(async () => {
     setLoading(true)
@@ -291,13 +319,20 @@ export function Shipments() {
       .catch(() => {})
   }, [])
 
+  useEffect(() => {
+    fetch('/api/crew')
+      .then((r) => r.json())
+      .then((data: { id: string; fullName: string; role: string; status: string }[]) => {
+        const list = Array.isArray(data) ? data : []
+        setAllCrew(list.filter((c) => c.status !== 'Inactivo'))
+      })
+      .catch(() => {})
+  }, [])
+
   const activeFilterCount = [statusFilter !== 'all', cargoFilter !== 'all', search !== ''].filter(Boolean).length
 
-  const handleAdd = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    const form = new FormData(e.currentTarget)
-    // Helper: convert File -> base64 (without data: prefix)
-    const fileToBase64 = (file: File) => new Promise<string>((resolve, reject) => {
+  const fileToBase64 = (file: File) =>
+    new Promise<string>((resolve, reject) => {
       const reader = new FileReader()
       reader.onload = () => {
         const result = reader.result as string
@@ -307,9 +342,63 @@ export function Shipments() {
       reader.onerror = (err) => reject(err)
       reader.readAsDataURL(file)
     })
-    const body = {
+
+  const refreshShipmentDetail = useCallback(async (shipmentId: string) => {
+    try {
+      const res = await fetch(`/api/shipments/${shipmentId}`)
+      if (!res.ok) return
+      const data = await res.json()
+      setSelectedShipment(data)
+      fetchShipments()
+    } catch {
+      toast.error('No se pudo actualizar el envío')
+    }
+  }, [fetchShipments])
+
+  const handleDetailShipmentDocUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    category: (typeof SHIPMENT_DOC_CATEGORY_VALUES)[number]
+  ) => {
+    const input = e.currentTarget
+    const files = input.files ? Array.from(input.files) : []
+    if (!files.length || !selectedShipment) return
+    const attachments = await Promise.all(
+      files.map(async (file) => ({
+        filename: file.name,
+        contentBase64: await fileToBase64(file),
+        name: file.name,
+        type: file.type || 'application/octet-stream',
+        category,
+        documentSubtype: category,
+      }))
+    )
+    try {
+      const res = await fetch(`/api/shipments/${selectedShipment.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ attachments }),
+      })
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string }
+        throw new Error(j.error || `Error ${res.status}`)
+      }
+      await refreshShipmentDetail(selectedShipment.id)
+      toast.success('Documentos agregados al envío')
+    } catch (err) {
+      console.error(err)
+      toast.error(err instanceof Error ? err.message : 'Error al subir documentos')
+    } finally {
+      input.value = ''
+    }
+  }
+
+  const handleAdd = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const form = new FormData(e.currentTarget)
+    const vesselRaw = (form.get('vesselId') as string) || ''
+    const body: Record<string, unknown> = {
       reference: `SHP-2026-${String(Date.now()).slice(-3)}`,
-      blNumber: form.get('blNumber') as string || 'PENDIENTE',
+      blNumber: (form.get('blNumber') as string) || 'PENDIENTE',
       origin: form.get('origin') as string,
       destination: form.get('destination') as string,
       originPort: form.get('originPort') as string,
@@ -319,7 +408,7 @@ export function Shipments() {
       containerCount: parseInt(form.get('containerCount') as string) || 0,
       value: parseFloat(form.get('value') as string) || null,
       clientName: form.get('clientName') as string,
-      vesselId: form.get('vesselId') as string || null,
+      vesselId: vesselRaw && vesselRaw !== 'none' ? vesselRaw : null,
       status: 'Registrado',
       eta: form.get('eta') as string || null,
       departureDate: null,
@@ -327,23 +416,79 @@ export function Shipments() {
       regulatoryCategory: (form.get('regulatoryCategory') as string) === 'none' ? null : (form.get('regulatoryCategory') as string) || null,
       incoterm: form.get('incoterm') as string || null,
       packagingType: form.get('packagingType') as string || null,
+      crewAssignments: createCrewAssignments,
     }
-    // Collect attachments from file input (if any)
-    const inputEl = (e.currentTarget.querySelector('input[name="attachments"]') as HTMLInputElement | null)
-    const files = inputEl?.files
-    if (files && files.length > 0) {
-      const arr = Array.from(files)
-      const attachments = await Promise.all(arr.map(async (file) => ({
-        filename: file.name,
-        contentBase64: await fileToBase64(file),
-        name: file.name,
-        type: file.type || 'application/octet-stream',
-      })))
-      ;(body as any).attachments = attachments
+
+    const categoryMap: { name: string; category: (typeof SHIPMENT_DOC_CATEGORY_VALUES)[number] }[] = [
+      { name: 'attachmentsPermisos', category: 'Permisos' },
+      { name: 'attachmentsEmbarque', category: 'Embarque' },
+      { name: 'attachmentsAduana', category: 'Aduana y legal' },
+      { name: 'attachmentsOtros', category: 'Otros' },
+    ]
+    const allAttachments: {
+      filename: string
+      contentBase64: string
+      name: string
+      type: string
+      category: string
+      documentSubtype: string
+    }[] = []
+    for (const { name, category } of categoryMap) {
+      const inputEl = e.currentTarget.querySelector(`input[name="${name}"]`) as HTMLInputElement | null
+      const fileList = inputEl?.files
+      if (!fileList?.length) continue
+      for (const file of Array.from(fileList)) {
+        allAttachments.push({
+          filename: file.name,
+          contentBase64: await fileToBase64(file),
+          name: file.name,
+          type: file.type || 'application/octet-stream',
+          category,
+          documentSubtype: category,
+        })
+      }
     }
-    await fetch('/api/shipments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-    setShowAdd(false)
-    fetchShipments()
+    if (allAttachments.length > 0) body.attachments = allAttachments
+
+    try {
+      const res = await fetch('/api/shipments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) {
+        toast.error('No se pudo crear el envío')
+        return
+      }
+      setShowAdd(false)
+      setCreateDocCounts({})
+      setCreateCrewAssignments([])
+      e.currentTarget.reset()
+      fetchShipments()
+      toast.success('Envío creado correctamente')
+    } catch {
+      toast.error('Error de red al crear el envío')
+    }
+  }
+
+  // Save crew assignments from the detail dialog
+  const handleSaveCrewAssignments = async () => {
+    if (!selectedShipment) return
+    setSavingCrew(true)
+    try {
+      const res = await fetch(`/api/shipments/${selectedShipment.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ crewAssignments: editCrewAssignments }),
+      })
+      if (!res.ok) throw new Error('Error')
+      await refreshShipmentDetail(selectedShipment.id)
+      toast.success('Tripulantes actualizados correctamente')
+    } catch {
+      toast.error('Error al actualizar tripulantes')
+    } finally {
+      setSavingCrew(false)
+    }
   }
 
   const handleStatusUpdate = async (newStatus: string) => {
@@ -489,6 +634,21 @@ export function Shipments() {
     if (!selectedShipment) return 0
     return requiredDocs.filter(r => isDocumentUploaded(r.name, r.keywords, selectedShipment.documents).found).length
   }, [requiredDocs, selectedShipment])
+
+  const shipmentDocumentsByCategory = useMemo(() => {
+    if (!selectedShipment) return new Map<string, Shipment['documents']>()
+    const m = new Map<string, Shipment['documents']>()
+    for (const label of SHIPMENT_DOC_CATEGORY_VALUES) {
+      m.set(label, [])
+    }
+    for (const d of selectedShipment.documents) {
+      const raw = d.category?.trim() || ''
+      const cat = (SHIPMENT_DOC_CATEGORY_VALUES as readonly string[]).includes(raw) ? raw : 'Otros'
+      if (!m.has(cat)) m.set(cat, [])
+      m.get(cat)!.push(d)
+    }
+    return m
+  }, [selectedShipment])
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }} className="space-y-4">
@@ -1244,7 +1404,7 @@ export function Shipments() {
                 <Separator />
 
                 {/* Collapsible Sections */}
-                <Accordion type="multiple" defaultValue={['permits', 'containers', 'documents']} className="w-full">
+                <Accordion type="multiple" defaultValue={['permits', 'crew', 'containers', 'documents']} className="w-full">
                   {/* Related Permits */}
                   <AccordionItem value="permits">
                     <AccordionTrigger className="text-sm font-semibold py-3">
@@ -1278,6 +1438,121 @@ export function Shipments() {
                       ) : (
                         <p className="text-xs text-muted-foreground py-2">No hay permisos asociados</p>
                       )}
+                    </AccordionContent>
+                  </AccordionItem>
+
+                  {/* Tripulación asignada al envío */}
+                  <AccordionItem value="crew">
+                    <AccordionTrigger
+                      className="text-sm font-semibold py-3"
+                      onClick={() => {
+                        // Sync edit state from current assignments when opening
+                        setEditCrewAssignments(
+                          (selectedShipment.crewAssignments ?? []).map((a) => ({ crewId: a.crew.id, role: a.role }))
+                        )
+                      }}
+                    >
+                      <span className="flex items-center gap-2">
+                        <Users className="w-4 h-4 text-teal-500" />
+                        Tripulantes
+                        {(selectedShipment.crewAssignments?.length ?? 0) > 0 && (
+                          <Badge variant="secondary" className="text-[10px] h-5 ml-1">
+                            {selectedShipment.crewAssignments!.length}
+                          </Badge>
+                        )}
+                      </span>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="space-y-3">
+                        {/* Current assignments list */}
+                        {editCrewAssignments.length > 0 ? (
+                          <ul className="space-y-2">
+                            {editCrewAssignments.map((a, idx) => {
+                              const crewMember = allCrew.find((c) => c.id === a.crewId)
+                              return (
+                                <li
+                                  key={a.crewId}
+                                  className="flex flex-wrap items-center justify-between gap-2 text-xs p-2.5 bg-muted/30 rounded-md"
+                                >
+                                  <span className="font-medium">{crewMember?.fullName ?? a.crewId}</span>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <Select
+                                      value={a.role}
+                                      onValueChange={(val) => {
+                                        setEditCrewAssignments((prev) =>
+                                          prev.map((x, i) => (i === idx ? { ...x, role: val } : x))
+                                        )
+                                      }}
+                                    >
+                                      <SelectTrigger className="h-6 text-[10px] w-[150px]">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {CREW_ROLES.map((r) => (
+                                          <SelectItem key={r} value={r} className="text-xs">{r}</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                      onClick={() =>
+                                        setEditCrewAssignments((prev) => prev.filter((_, i) => i !== idx))
+                                      }
+                                    >
+                                      ✕
+                                    </Button>
+                                  </div>
+                                </li>
+                              )
+                            })}
+                          </ul>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">Sin tripulantes asignados.</p>
+                        )}
+
+                        {/* Add a crew member */}
+                        <div className="flex items-center gap-2 pt-1">
+                          <Select
+                            key={addCrewEditKey}
+                            onValueChange={(crewId) => {
+                              if (!crewId || editCrewAssignments.some((a) => a.crewId === crewId)) return
+                              setEditCrewAssignments((prev) => [...prev, { crewId, role: 'Tripulante' }])
+                              setAddCrewEditKey((k) => k + 1)
+                            }}
+                          >
+                            <SelectTrigger className="h-8 text-xs flex-1">
+                              <SelectValue placeholder="+ Agregar tripulante..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {allCrew
+                                .filter((c) => !editCrewAssignments.some((a) => a.crewId === c.id))
+                                .map((c) => (
+                                  <SelectItem key={c.id} value={c.id} className="text-xs">
+                                    {c.fullName} — {c.role}
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            size="sm"
+                            className="h-8 bg-teal-600 hover:bg-teal-700 text-white gap-1"
+                            onClick={handleSaveCrewAssignments}
+                            disabled={savingCrew}
+                          >
+                            {savingCrew ? (
+                              <RefreshCw className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <CheckCircle2 className="w-3 h-3" />
+                            )}
+                            Guardar
+                          </Button>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground">
+                          Selecciona un tripulante para añadirlo, ajusta su rol y presiona Guardar.
+                        </p>
+                      </div>
                     </AccordionContent>
                   </AccordionItem>
 
@@ -1327,35 +1602,95 @@ export function Shipments() {
                         )}
                       </span>
                     </AccordionTrigger>
-                    <AccordionContent>
-                      {selectedShipment.documents.length > 0 ? (
-                        <div className="space-y-1.5">
-                          {selectedShipment.documents.map((d) => (
-                            <div key={d.id} className="flex items-center justify-between text-xs p-2.5 bg-muted/30 rounded-md hover:bg-muted/50 transition-colors">
-                              <span className="flex items-center gap-2">
-                                <FileText className="w-3 h-3 text-orange-500" />
-                                {d.name}
-                                {d.documentSubtype && (
-                                  <span className="text-[9px] text-muted-foreground bg-muted/50 px-1 rounded">{d.documentSubtype}</span>
-                                )}
+                    <AccordionContent className="space-y-4">
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground mb-2">Adjuntar por tipo</p>
+                        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
+                          {SHIPMENT_DOC_CATEGORIES.map((row) => (
+                            <div key={row.key} className="flex items-center gap-2 min-w-0">
+                              <input
+                                type="file"
+                                multiple
+                                className="hidden"
+                                id={`detail-shipment-doc-${selectedShipment.id}-${row.key}`}
+                                onChange={(e) =>
+                                  handleDetailShipmentDocUpload(
+                                    e,
+                                    row.label as (typeof SHIPMENT_DOC_CATEGORY_VALUES)[number]
+                                  )
+                                }
+                              />
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-8 gap-1 text-xs shrink-0"
+                                onClick={() =>
+                                  document
+                                    .getElementById(`detail-shipment-doc-${selectedShipment.id}-${row.key}`)
+                                    ?.click()
+                                }
+                              >
+                                <Paperclip className="w-3 h-3" />
+                                {row.label}
+                              </Button>
+                              <span className="text-[10px] text-muted-foreground truncate hidden sm:inline max-w-[140px]">
+                                {row.hint}
                               </span>
-                              <div className="flex items-center gap-2">
-                                <Badge variant="secondary" className="text-[10px]">{d.status}</Badge>
-                                {((d as any).fileUrl || (d as any).documentNumber) && (
-                                  <Button size="sm" variant="ghost" onClick={() => {
-                                    const url = (d as any).fileUrl || (d as any).documentNumber
-                                    if (!url) return
-                                    window.open(url, '_blank')
-                                  }} className="text-xs">
-                                    <Eye className="w-3 h-3" />
-                                  </Button>
-                                )}
-                              </div>
                             </div>
                           ))}
                         </div>
+                      </div>
+
+                      {selectedShipment.documents.length > 0 ? (
+                        <div className="space-y-4">
+                          {SHIPMENT_DOC_CATEGORY_VALUES.map((cat) => {
+                            const docs = shipmentDocumentsByCategory.get(cat) ?? []
+                            if (docs.length === 0) return null
+                            return (
+                              <div key={cat}>
+                                <p className="text-[11px] font-semibold text-teal-700 dark:text-teal-300 mb-1.5">{cat}</p>
+                                <div className="space-y-1.5">
+                                  {docs.map((d) => (
+                                    <div
+                                      key={d.id}
+                                      className="flex items-center justify-between text-xs p-2.5 bg-muted/30 rounded-md hover:bg-muted/50 transition-colors"
+                                    >
+                                      <span className="flex items-center gap-2 min-w-0">
+                                        <FileText className="w-3 h-3 text-orange-500 shrink-0" />
+                                        <span className="truncate">{d.name}</span>
+                                        {(d.documentSubtype || d.category) && (
+                                          <span className="text-[9px] text-muted-foreground bg-muted/50 px-1 rounded shrink-0">
+                                            {d.documentSubtype || d.category}
+                                          </span>
+                                        )}
+                                      </span>
+                                      <div className="flex items-center gap-2 shrink-0">
+                                        <Badge variant="secondary" className="text-[10px]">{d.status}</Badge>
+                                        {(d.fileUrl || (d as { documentNumber?: string }).documentNumber) && (
+                                          <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={() => {
+                                              const url = d.fileUrl || (d as { documentNumber?: string }).documentNumber
+                                              if (!url) return
+                                              window.open(url, '_blank')
+                                            }}
+                                            className="text-xs"
+                                          >
+                                            <Eye className="w-3 h-3" />
+                                          </Button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
                       ) : (
-                        <p className="text-xs text-muted-foreground py-2">No hay documentos asociados</p>
+                        <p className="text-xs text-muted-foreground py-2">No hay documentos asociados. Usa los botones de arriba para adjuntar.</p>
                       )}
                     </AccordionContent>
                   </AccordionItem>
@@ -1367,7 +1702,13 @@ export function Shipments() {
       </Dialog>
 
       {/* Add Shipment Dialog */}
-      <Dialog open={showAdd} onOpenChange={setShowAdd}>
+      <Dialog
+        open={showAdd}
+        onOpenChange={(open) => {
+          setShowAdd(open)
+          if (!open) { setCreateDocCounts({}); setAddCrewCreateKey((k) => k + 1); setCreateCrewAssignments([]) }
+        }}
+      >
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto p-0">
           {/* Header with gradient */}
           <div className="bg-gradient-to-r from-teal-600 to-teal-500 p-5 rounded-t-lg relative overflow-hidden">
@@ -1539,38 +1880,135 @@ export function Shipments() {
               </div>
             </div>
 
-            {/* Document attachments */}
+            <Separator />
+
+            {/* Tripulantes */}
             <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Documentos adjuntos</p>
-              <div className="flex items-center gap-3">
-                <input
-                  ref={(el) => (attachmentsRef.current = el)}
-                  type="file"
-                  name="attachments"
-                  multiple
-                  className="hidden"
-                  onChange={(e) => {
-                    const files = e.target.files ? Array.from(e.target.files) : []
-                    setSelectedFiles(files)
-                  }}
-                />
-                <Button
-                  type="button"
-                  onClick={() => attachmentsRef.current?.click()}
-                  className="h-9 bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
-                >
-                  <FilePlus2 className="w-4 h-4" />
-                  Adjuntar documentos
-                </Button>
-                <span className="text-xs text-muted-foreground">{selectedFiles.length} archivo(s) seleccionado(s)</span>
-              </div>
-              {selectedFiles.length > 0 && (
-                <div className="mt-2 space-y-1">
-                  {selectedFiles.map((f, i) => (
-                    <div key={i} className="text-xs text-muted-foreground truncate max-w-full">{f.name}</div>
-                  ))}
-                </div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
+                <Users className="w-3.5 h-3.5 text-teal-500" />
+                Tripulantes asignados
+                {createCrewAssignments.length > 0 && (
+                  <Badge className="text-[10px] h-5 px-1.5 bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300 border-teal-200 dark:border-teal-800">
+                    {createCrewAssignments.length}
+                  </Badge>
+                )}
+              </p>
+
+              {/* Selected crew list */}
+              {createCrewAssignments.length > 0 && (
+                <ul className="space-y-1.5 mb-3">
+                  {createCrewAssignments.map((a, idx) => {
+                    const crewMember = allCrew.find((c) => c.id === a.crewId)
+                    return (
+                      <li key={a.crewId} className="flex items-center justify-between gap-2 text-xs p-2 bg-teal-50 dark:bg-teal-900/20 rounded-md border border-teal-100 dark:border-teal-800">
+                        <span className="font-medium truncate flex-1">{crewMember?.fullName ?? a.crewId}</span>
+                        <Select
+                          value={a.role}
+                          onValueChange={(val) =>
+                            setCreateCrewAssignments((prev) =>
+                              prev.map((x, i) => (i === idx ? { ...x, role: val } : x))
+                            )
+                          }
+                        >
+                          <SelectTrigger className="h-6 text-[10px] w-[140px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {CREW_ROLES.map((r) => (
+                              <SelectItem key={r} value={r} className="text-xs">{r}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
+                          onClick={() => setCreateCrewAssignments((prev) => prev.filter((_, i) => i !== idx))}
+                        >
+                          ✕
+                        </Button>
+                      </li>
+                    )
+                  })}
+                </ul>
               )}
+
+              {/* Add crew selector */}
+              <Select
+                key={addCrewCreateKey}
+                onValueChange={(crewId) => {
+                  if (!crewId || createCrewAssignments.some((a) => a.crewId === crewId)) return
+                  setCreateCrewAssignments((prev) => [...prev, { crewId, role: 'Tripulante' }])
+                  setAddCrewCreateKey((k) => k + 1)
+                }}
+              >
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue placeholder="+ Agregar tripulante al envío..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {allCrew
+                    .filter((c) => !createCrewAssignments.some((a) => a.crewId === c.id))
+                    .map((c) => (
+                      <SelectItem key={c.id} value={c.id} className="text-sm">
+                        {c.fullName} — {c.role}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground mt-1.5">
+                Opcional. Puedes asignar y modificar tripulantes después desde el detalle del envío.
+              </p>
+            </div>
+
+            {/* Documentos adjuntos por categoría */}
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
+                <FilePlus2 className="w-3.5 h-3.5 text-teal-500" />
+                Documentos adjuntos
+              </p>
+              <p className="text-[11px] text-muted-foreground mb-3">
+                Clasifica permisos, embarque, trámites aduaneros u otros archivos. Todo quedará ligado al envío al crearlo.
+              </p>
+              <div className="space-y-3">
+                {SHIPMENT_DOC_CATEGORIES.map((row) => (
+                  <div
+                    key={row.key}
+                    className="flex flex-col sm:flex-row sm:items-center gap-2 p-2 rounded-lg border border-muted/60 bg-muted/10"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium">{row.label}</p>
+                      <p className="text-[10px] text-muted-foreground">{row.hint}</p>
+                    </div>
+                    <input
+                      type="file"
+                      name={row.key}
+                      multiple
+                      className="hidden"
+                      id={`create-shipment-${row.key}`}
+                      onChange={(e) => {
+                        const n = e.target.files?.length ?? 0
+                        setCreateDocCounts((prev) => ({ ...prev, [row.key]: n }))
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1.5 shrink-0"
+                      onClick={() => document.getElementById(`create-shipment-${row.key}`)?.click()}
+                    >
+                      <Paperclip className="w-3.5 h-3.5" />
+                      Elegir archivos
+                    </Button>
+                    <span className="text-[10px] text-muted-foreground sm:w-24">
+                      {(createDocCounts[row.key] ?? 0) > 0
+                        ? `${createDocCounts[row.key]} archivo(s)`
+                        : '—'}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
 
                 <DialogFooter className="pt-2">

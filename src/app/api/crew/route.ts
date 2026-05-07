@@ -12,7 +12,13 @@ export async function GET() {
         assignments: {
           include: {
             shipment: {
-              select: { reference: true, status: true, origin: true, destination: true }
+              select: {
+                reference: true,
+                status: true,
+                origin: true,
+                destination: true,
+                vessel: { select: { name: true } }
+              }
             }
           }
         }

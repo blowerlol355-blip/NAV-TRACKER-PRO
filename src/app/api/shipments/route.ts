@@ -37,7 +37,17 @@ export async function GET(request: NextRequest) {
     const [shipments, total] = await Promise.all([
       db.shipment.findMany({
         where,
-        include: { vessel: true, permits: true, containers: true, documents: true },
+        include: {
+          vessel: true,
+          permits: true,
+          containers: true,
+          documents: true,
+          crewAssignments: {
+            include: {
+              crew: { select: { id: true, fullName: true, role: true } },
+            },
+          },
+        },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -63,12 +73,28 @@ export async function POST(request: NextRequest) {
     const attachments = Array.isArray(body.attachments) ? body.attachments : []
     delete body.attachments
 
+    // Extract crew assignments before creating shipment
+    const crewAssignments: { crewId: string; role: string }[] = Array.isArray(body.crewAssignments) ? body.crewAssignments : []
+    delete body.crewAssignments
+
     // Convert some date-like fields if provided as strings
     if (body.eta) body.eta = new Date(body.eta)
     if (body.departureDate) body.departureDate = new Date(body.departureDate)
     if (body.arrivalDate) body.arrivalDate = new Date(body.arrivalDate)
 
     const shipment = await db.shipment.create({ data: body })
+
+    // Create crew assignments if provided
+    if (crewAssignments.length > 0) {
+      await db.crewAssignment.createMany({
+        data: crewAssignments.map((a) => ({
+          crewId: a.crewId,
+          shipmentId: shipment.id,
+          role: a.role || 'Tripulante',
+        })),
+        skipDuplicates: true,
+      })
+    }
 
     if (attachments.length > 0) {
       const uploadsDir = path.join(process.cwd(), 'public', 'uploads')
@@ -92,7 +118,7 @@ export async function POST(request: NextRequest) {
               status: att.status || 'Vigente',
               fileSize: String(buffer.length),
               category: att.category || null,
-              documentSubtype: att.documentSubtype || null,
+              documentSubtype: att.documentSubtype || att.category || null,
               issuingAuthority: att.issuingAuthority || null,
               // persist public URL to file
               fileUrl: att.fileUrl || `/uploads/${filename}`,
@@ -104,7 +130,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const created = await db.shipment.findUnique({ where: { id: shipment.id }, include: { documents: true, permits: true, containers: true } })
+    const created = await db.shipment.findUnique({
+      where: { id: shipment.id },
+      include: {
+        documents: true,
+        permits: true,
+        containers: true,
+        vessel: true,
+        crewAssignments: {
+          include: {
+            crew: { select: { id: true, fullName: true, role: true } },
+          },
+        },
+      },
+    })
     return NextResponse.json(created || shipment, { status: 201 })
   } catch (error) {
     console.error('Create shipment error:', error)
