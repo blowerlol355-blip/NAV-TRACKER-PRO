@@ -441,7 +441,6 @@ export function Crew() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-zinc-900/90 hover:bg-zinc-900/90">
-                    <TableHead className="w-8" />
                     <TableHead className="text-xs font-semibold text-orange-200">Nombre</TableHead>
                     <TableHead className="text-xs font-semibold text-orange-200">Licencia</TableHead>
                     <TableHead className="text-xs font-semibold text-orange-200">Rol</TableHead>
@@ -501,7 +500,7 @@ export function Crew() {
 
                         {isExpanded && (
                           <TableRow>
-                            <TableCell colSpan={9} className="p-3">
+                            <TableCell colSpan={8} className="p-3">
                               <div className={`space-y-3 p-3 ${SURFACE_SOFT}`}>
                                 <div className="flex items-center justify-between">
                                   <div>

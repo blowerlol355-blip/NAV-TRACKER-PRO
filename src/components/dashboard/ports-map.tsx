@@ -3,14 +3,19 @@
 import React, { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { MapPin } from 'lucide-react'
+import dynamic from 'next/dynamic'
+import { Skeleton } from '@/components/ui/skeleton'
 
 type Port = { id: string; name: string; code?: string; country?: string; timezone?: string; coords?: { lat: number; lon: number } | null; meta?: any }
 
-function projectEquirectangular(lat: number, lon: number, width: number, height: number) {
-  const x = ((lon + 180) / 360) * width
-  const y = ((90 - lat) / 180) * height
-  return { x, y }
-}
+// Dynamically import the leaflet map with SSR disabled
+const InnerPortsMap = dynamic(
+  () => import('./inner-ports-map'),
+  { 
+    ssr: false,
+    loading: () => <Skeleton className="w-full h-full min-h-[320px] rounded-md" />
+  }
+)
 
 export default function PortsMap() {
   const [ports, setPorts] = useState<Port[]>([])
@@ -29,25 +34,7 @@ export default function PortsMap() {
       <CardContent>
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1 relative" style={{ minHeight: 320 }}>
-            <svg viewBox="0 0 1000 500" className="w-full h-full bg-slate-50 rounded-md">
-              <rect width="1000" height="500" fill="url(#bg)" />
-              <defs>
-                <linearGradient id="bg" x1="0" x2="1">
-                  <stop offset="0%" stopColor="#f8fafc" />
-                  <stop offset="100%" stopColor="#f1f5f9" />
-                </linearGradient>
-              </defs>
-              {ports.map((p) => {
-                if (!p.coords) return null
-                const { x, y } = projectEquirectangular(p.coords.lat, p.coords.lon, 1000, 500)
-                return (
-                  <g key={p.id} transform={`translate(${x}, ${y})`} style={{ cursor: 'pointer' }} onClick={() => setSelected(p)}>
-                    <circle r={6} fill="#ef4444" stroke="#fff" strokeWidth={1.5} />
-                    <text x={10} y={4} fontSize={12} fill="#0f172a">{p.code || p.name}</text>
-                  </g>
-                )
-              })}
-            </svg>
+            <InnerPortsMap ports={ports} onSelect={setSelected} />
           </div>
 
           <div className="w-full sm:w-80">

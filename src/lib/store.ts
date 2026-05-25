@@ -14,8 +14,9 @@ interface FavoriteItem {
 interface AppState {
   activeTab: TabId
   setActiveTab: (tab: TabId) => void
-  sidebarCollapsed: boolean
+  sidebarOpen: boolean
   toggleSidebar: () => void
+  setSidebarOpen: (open: boolean) => void
   searchQuery: string
   setSearchQuery: (query: string) => void
   searchOpen: boolean
@@ -30,13 +31,18 @@ interface AppState {
   addFavorite: (item: FavoriteItem) => void
   removeFavorite: (id: string) => void
   isFavorite: (id: string) => boolean
+  selectedPortCodeToView: string | null
+  setSelectedPortCodeToView: (code: string | null) => void
+  chatOpen: boolean
+  setChatOpen: (open: boolean) => void
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
   activeTab: 'dashboard',
   setActiveTab: (tab) => set({ activeTab: tab }),
-  sidebarCollapsed: false,
-  toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+  sidebarOpen: false,
+  toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+  setSidebarOpen: (open) => set({ sidebarOpen: open }),
   searchQuery: '',
   setSearchQuery: (query) => set({ searchQuery: query }),
   searchOpen: false,
@@ -56,4 +62,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     favorites: state.favorites.filter(f => f.id !== id),
   })),
   isFavorite: (id) => get().favorites.some(f => f.id === id),
+  selectedPortCodeToView: null,
+  setSelectedPortCodeToView: (code) => set({ selectedPortCodeToView: code }),
+  chatOpen: false,
+  setChatOpen: (open) => set({ chatOpen: open }),
 }))

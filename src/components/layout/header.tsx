@@ -1,7 +1,7 @@
 'use client'
 
 import { useAppStore, type TabId } from '@/lib/store'
-import { Search, Bell, Sun, Moon, RefreshCw, CheckCircle, AlertTriangle, AlertCircle, Info, Clock, Globe } from 'lucide-react'
+import { Search, Bell, Sun, Moon, RefreshCw, CheckCircle, AlertTriangle, AlertCircle, Info, Clock, Globe, Menu } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
@@ -90,7 +90,7 @@ const TYPE_CONFIG: Record<string, { icon: React.ElementType; color: string; bord
 const GROUP_ORDER = ['error', 'warning', 'info', 'success']
 
 export function Header() {
-  const { activeTab, setActiveTab, setSearchOpen } = useAppStore()
+  const { activeTab, setActiveTab, setSearchOpen, setSidebarOpen } = useAppStore()
   const [darkMode, setDarkMode] = useState(false)
   const [currentTime, setCurrentTime] = useState('')
   const [utcTime, setUtcTime] = useState('')
@@ -171,7 +171,6 @@ export function Header() {
       document.documentElement.classList.remove('dark')
     }
     initializedRef.current = true
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- Theme initialization requires reading localStorage on mount
     setDarkMode(isDark)
   }, [])
 
@@ -211,10 +210,19 @@ export function Header() {
   }
 
   return (
-    <header className="h-16 bg-background/95 backdrop-blur-sm border-b flex items-center justify-between px-6 flex-shrink-0">
-      <div className="flex flex-col justify-center">
-        <h1 className="text-lg font-semibold text-foreground leading-tight">{tabTitles[activeTab] || 'Panel Principal'}</h1>
-        <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">{tabSubtitles[activeTab] || ''}</p>
+    <header className="h-16 bg-background/95 backdrop-blur-sm border-b flex items-center justify-between px-4 sm:px-6 flex-shrink-0">
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="p-2 -ml-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
+          title="Abrir Menú"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+        <div className="flex flex-col justify-center">
+          <h1 className="text-lg font-semibold text-foreground leading-tight">{tabTitles[activeTab] || 'Panel Principal'}</h1>
+          <p className="text-[11px] text-muted-foreground leading-tight mt-0.5 hidden sm:block">{tabSubtitles[activeTab] || ''}</p>
+        </div>
       </div>
 
       <div className="flex items-center gap-3">

@@ -92,7 +92,6 @@ export async function POST(request: NextRequest) {
           shipmentId: shipment.id,
           role: a.role || 'Tripulante',
         })),
-        skipDuplicates: true,
       })
     }
 

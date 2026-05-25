@@ -9,6 +9,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { SearchCommand } from '@/components/layout/search-command'
 import { Footer } from '@/components/layout/footer'
 import { QuickActionsBar } from '@/components/layout/quick-actions'
+import { ChatWidget } from '@/components/chat/chat-widget'
 
 // Lazy load all dashboard components to reduce initial bundle size
 // and avoid overwhelming the dev server with too many API calls at once
@@ -95,6 +96,7 @@ export default function Home() {
     </div>
     <SearchCommand />
     <QuickActionsBar />
+    <ChatWidget />
     </>
   )
 }

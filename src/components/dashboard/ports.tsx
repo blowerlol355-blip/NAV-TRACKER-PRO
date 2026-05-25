@@ -171,6 +171,8 @@ const SHIPMENT_STATUS_COLORS: Record<string, string> = {
   'Retrasado': 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
 }
 
+import { useAppStore } from '@/lib/store'
+
 export function Ports() {
   const [ports, setPorts] = useState<Port[]>([])
   const [shipments, setShipments] = useState<Shipment[]>([])
@@ -181,6 +183,20 @@ export function Ports() {
   const [selectedPort, setSelectedPort] = useState<Port | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [localTimeTick, setLocalTimeTick] = useState(0)
+
+  const { selectedPortCodeToView, setSelectedPortCodeToView } = useAppStore()
+
+  // Handle external navigation to a specific port
+  useEffect(() => {
+    if (selectedPortCodeToView && ports.length > 0) {
+      const p = ports.find(port => port.code === selectedPortCodeToView)
+      if (p) {
+        setSelectedPort(p)
+        setDialogOpen(true)
+        setSelectedPortCodeToView(null)
+      }
+    }
+  }, [selectedPortCodeToView, ports, setSelectedPortCodeToView])
 
   // Tick for live local time
   useEffect(() => {

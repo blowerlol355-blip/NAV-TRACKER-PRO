@@ -133,7 +133,6 @@ export async function PUT(
             shipmentId: id,
             role: a.role || 'Tripulante',
           })),
-          skipDuplicates: true,
         });
       }
     }

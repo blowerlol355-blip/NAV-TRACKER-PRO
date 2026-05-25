@@ -56,38 +56,48 @@ const navSections: NavSection[] = [
 ]
 
 export function Sidebar() {
-  const { activeTab, setActiveTab, sidebarCollapsed, toggleSidebar } = useAppStore()
+  const { activeTab, setActiveTab, sidebarOpen, setSidebarOpen } = useAppStore()
 
   return (
-    <TooltipProvider delayDuration={0}>
+    <>
+      <AnimatePresence>
+        {sidebarOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+      </AnimatePresence>
       <motion.aside
         initial={false}
-        animate={{ width: sidebarCollapsed ? 68 : 256 }}
-        transition={{ duration: 0.2, ease: 'easeInOut' }}
-        className="h-screen bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 text-white flex flex-col flex-shrink-0 overflow-hidden relative"
+        animate={{ 
+          x: sidebarOpen ? 0 : '-100%',
+          width: 256
+        }}
+        transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
+        className="fixed top-0 left-0 bottom-0 z-50 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 text-white flex flex-col overflow-hidden shadow-2xl"
       >
         {/* Decorative wave pattern at top */}
         <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-accent/20 to-transparent pointer-events-none" />
 
         {/* Logo */}
-        <div className="flex items-center gap-3 px-4 h-16 flex-shrink-0 relative z-10">
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-accent to-accent-700 flex items-center justify-center flex-shrink-0 shadow-lg shadow-accent/20">
-            <Anchor className="w-5 h-5 text-white" />
+        <div className="flex items-center justify-between px-4 h-16 flex-shrink-0 relative z-10">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-accent to-accent-700 flex items-center justify-center flex-shrink-0 shadow-lg shadow-accent/20">
+              <Anchor className="w-5 h-5 text-white" />
+            </div>
+            <div className="overflow-hidden whitespace-nowrap flex items-center gap-2">
+              <span className="text-lg font-bold tracking-tight">NavTrack</span>
+              <span className="text-lg font-light text-accent">Pro</span>
+            </div>
           </div>
-          <AnimatePresence>
-            {!sidebarCollapsed && (
-              <motion.div
-                initial={{ opacity: 1, x: 0 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -10 }}
-                transition={{ duration: 0.15 }}
-                className="overflow-hidden whitespace-nowrap flex items-center gap-2"
-              >
-                <span className="text-lg font-bold tracking-tight">NavTrack</span>
-                <span className="text-lg font-light text-accent">Pro</span>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <button onClick={() => setSidebarOpen(false)} className="p-1 hover:bg-slate-800 rounded-md transition-colors lg:hidden">
+            <ChevronLeft className="w-5 h-5 text-slate-400" />
+          </button>
         </div>
 
         <Separator className="bg-slate-700/50" />
@@ -97,97 +107,65 @@ export function Sidebar() {
           {navSections.map((section, sectionIdx) => (
             <div key={section.title} className={sectionIdx > 0 ? 'mt-2' : ''}>
               {/* Section header */}
-              <AnimatePresence>
-                {!sidebarCollapsed && (
-                  <motion.div
-                    initial={{ opacity: 1 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="px-3 py-1.5 mt-1"
-                  >
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                      {section.title}
-                    </span>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-              {sidebarCollapsed && sectionIdx > 0 && (
-                <div className="my-1 mx-3 h-px bg-slate-700/50" />
-              )}
+              <div className="px-3 py-1.5 mt-1">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                  {section.title}
+                </span>
+              </div>
 
               {/* Section items */}
               {section.items.map((item) => {
                 const isActive = activeTab === item.id
                 const Icon = item.icon
 
-                const button = (
-                  <button
-                    key={item.id}
-                    onClick={() => setActiveTab(item.id)}
-                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-300 relative group ${
-                      isActive
-                        ? 'bg-accent/15 text-accent'
-                        : 'text-slate-400 hover:bg-slate-800/80 hover:text-slate-200'
-                    }`}
-                  >
-                    {isActive && (
-                      <motion.div
-                        layoutId="activeBg"
+                return (
+                  <div key={item.id} className="relative">
+                    <button
+                      onClick={() => {
+                        setActiveTab(item.id)
+                        if (window.innerWidth < 1024) setSidebarOpen(false)
+                      }}
+                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-300 relative group ${
+                        isActive
+                          ? 'bg-accent/15 text-accent'
+                          : 'text-slate-400 hover:bg-slate-800/80 hover:text-slate-200'
+                      }`}
+                    >
+                      {isActive && (
+                        <motion.div
+                          layoutId="activeBg"
                           className="absolute inset-0 bg-accent/10 rounded-lg"
-                        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                      />
-                    )}
-                    <Icon className={`w-5 h-5 flex-shrink-0 relative z-10 transition-all duration-300 ${
-                          isActive ? 'text-accent scale-110' : 'group-hover:text-slate-200 group-hover:scale-105'
-                    }`} />
-                    <AnimatePresence>
-                      {!sidebarCollapsed && (
-                        <motion.span
-                          initial={{ opacity: 1, x: 0 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          exit={{ opacity: 0, x: -10 }}
-                          transition={{ duration: 0.15 }}
-                          className="overflow-hidden whitespace-nowrap relative z-10 flex-1 text-left"
-                        >
-                          {item.label}
-                        </motion.span>
-                      )}
-                    </AnimatePresence>
-                    {!sidebarCollapsed && item.badge && (
-                      <span className="relative z-10 min-w-[20px] h-5 px-1.5 flex items-center justify-center rounded-full bg-accent/20 text-accent text-[10px] font-bold transition-transform duration-200 group-hover:scale-110">
-                        {item.badge}
-                      </span>
-                    )}
-                    {isActive && (
-                      <motion.div
-                          layoutId="activeIndicator"
-                          className="absolute left-0 w-[3px] h-6 bg-gradient-to-b from-accent to-accent-600 rounded-r-full"
                           transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                         />
-                    )}
-                    {/* Hover slide indicator */}
-                    {!isActive && (
-                      <motion.div
-                        className="absolute left-0 w-[3px] h-0 bg-accent/40 rounded-r-full"
-                        whileHover={{ height: 24 }}
-                        transition={{ duration: 0.2 }}
-                      />
-                    )}
-                  </button>
-                )
-
-                if (sidebarCollapsed) {
-                  return (
-                    <Tooltip key={item.id}>
-                      <TooltipTrigger asChild>{button}</TooltipTrigger>
-                      <TooltipContent side="right" className="bg-slate-800 text-white border-slate-700 shadow-xl">
+                      )}
+                      <Icon className={`w-5 h-5 flex-shrink-0 relative z-10 transition-all duration-300 ${
+                            isActive ? 'text-accent scale-110' : 'group-hover:text-slate-200 group-hover:scale-105'
+                      }`} />
+                      <span className="overflow-hidden whitespace-nowrap relative z-10 flex-1 text-left">
                         {item.label}
-                      </TooltipContent>
-                    </Tooltip>
-                  )
-                }
-
-                return <div key={item.id} className="relative">{button}</div>
+                      </span>
+                      {item.badge && (
+                        <span className="relative z-10 min-w-[20px] h-5 px-1.5 flex items-center justify-center rounded-full bg-accent/20 text-accent text-[10px] font-bold transition-transform duration-200 group-hover:scale-110">
+                          {item.badge}
+                        </span>
+                      )}
+                      {isActive && (
+                        <motion.div
+                            layoutId="activeIndicator"
+                            className="absolute left-0 w-[3px] h-6 bg-gradient-to-b from-accent to-accent-600 rounded-r-full"
+                            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                          />
+                      )}
+                      {!isActive && (
+                        <motion.div
+                          className="absolute left-0 w-[3px] h-0 bg-accent/40 rounded-r-full"
+                          whileHover={{ height: 24 }}
+                          transition={{ duration: 0.2 }}
+                        />
+                      )}
+                    </button>
+                  </div>
+                )
               })}
             </div>
           ))}
@@ -196,21 +174,12 @@ export function Sidebar() {
         <Separator className="bg-slate-700/50" />
 
         {/* Online status indicator */}
-        <AnimatePresence>
-          {!sidebarCollapsed && (
-            <motion.div
-              initial={{ opacity: 1 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="px-4 py-2 relative z-10"
-            >
-              <div className="flex items-center gap-2 text-[10px] text-slate-500">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Sistema en línea • {new Date().toLocaleDateString('es-MX', { month: 'short', year: 'numeric' })}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <div className="px-4 py-2 relative z-10">
+          <div className="flex items-center gap-2 text-[10px] text-slate-500">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Sistema en línea • {new Date().toLocaleDateString('es-MX', { month: 'short', year: 'numeric' })}
+          </div>
+        </div>
 
         {/* User section */}
         <div className="p-3 flex-shrink-0 relative z-10">
@@ -218,38 +187,24 @@ export function Sidebar() {
             <Avatar className="h-8 w-8 flex-shrink-0 ring-2 ring-accent/30">
               <AvatarFallback className="bg-gradient-to-br from-accent to-accent-700 text-white text-xs font-bold">AD</AvatarFallback>
             </Avatar>
-            <AnimatePresence>
-              {!sidebarCollapsed && (
-                <motion.div
-                  initial={{ opacity: 1, x: 0 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -10 }}
-                  transition={{ duration: 0.15 }}
-                  className="overflow-hidden whitespace-nowrap"
-                >
-                  <p className="text-sm font-medium text-slate-200">Administrador</p>
-                  <p className="text-[11px] text-slate-500">admin@navtrack.mx</p>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            <div className="overflow-hidden whitespace-nowrap">
+              <p className="text-sm font-medium text-slate-200">Administrador</p>
+              <p className="text-[11px] text-slate-500">admin@navtrack.mx</p>
+            </div>
           </div>
         </div>
 
-        {/* Collapse button */}
+        {/* Close button at the bottom */}
         <button
-          onClick={toggleSidebar}
+          onClick={() => setSidebarOpen(false)}
           className="h-10 flex items-center justify-center bg-slate-800/50 hover:bg-slate-700/80 transition-colors flex-shrink-0 relative z-10 group"
         >
-          {sidebarCollapsed ? (
-            <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-slate-300 transition-colors" />
-          ) : (
-            <div className="flex items-center gap-2">
-              <Waves className="w-3 h-3 text-slate-600" />
-              <ChevronLeft className="w-4 h-4 text-slate-500 group-hover:text-slate-300 transition-colors" />
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            <ChevronLeft className="w-4 h-4 text-slate-500 group-hover:text-slate-300 transition-colors" />
+            <span className="text-xs text-slate-400 group-hover:text-slate-200">Ocultar Menú</span>
+          </div>
         </button>
       </motion.aside>
-    </TooltipProvider>
+    </>
   )
 }

@@ -690,7 +690,6 @@ export function Overview() {
   }, [])
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- Data fetching on mount/retry requires async setState
     void fetchDashboard()
     void fetchActivities()
   }, [fetchDashboard, fetchActivities, retryCount])
